@@ -789,6 +789,189 @@ class DatabaseService {
     }
   }
 
+  // SEARCH METHODS
+
+  // Search groups by name or description
+  Future<List<GroupModel>> searchGroups(String query, String userId) async {
+    try {
+      if (query.trim().isEmpty) {
+        return await getUserGroups(userId);
+      }
+
+      // Get user's groups first
+      List<GroupModel> userGroups = await getUserGroups(userId);
+
+      // Filter by query
+      List<GroupModel> filteredGroups = userGroups.where((group) {
+        String lowercaseQuery = query.toLowerCase();
+        return group.name.toLowerCase().contains(lowercaseQuery) ||
+            (group.description?.toLowerCase().contains(lowercaseQuery) ?? false);
+      }).toList();
+
+      // Sort by relevance (name matches first, then description matches)
+      filteredGroups.sort((a, b) {
+        String lowercaseQuery = query.toLowerCase();
+        bool aNameMatch = a.name.toLowerCase().contains(lowercaseQuery);
+        bool bNameMatch = b.name.toLowerCase().contains(lowercaseQuery);
+
+        if (aNameMatch && !bNameMatch) return -1;
+        if (!aNameMatch && bNameMatch) return 1;
+
+        // Both have name matches or both don't - sort alphabetically
+        return a.name.compareTo(b.name);
+      });
+
+      print('🔍 Search results for "$query": ${filteredGroups.length} groups found');
+      return filteredGroups;
+    } catch (e) {
+      print('❌ Error searching groups: $e');
+      return [];
+    }
+  }
+
+  // Search friends by name or email
+  Future<List<FriendBalance>> searchFriends(String query, String userId) async {
+    try {
+      if (query.trim().isEmpty) {
+        return await getUserFriendsWithBalances(userId);
+      }
+
+      // Get user's friends first
+      List<FriendBalance> userFriends = await getUserFriendsWithBalances(userId);
+
+      // Filter by query
+      List<FriendBalance> filteredFriends = userFriends.where((friendBalance) {
+        String lowercaseQuery = query.toLowerCase();
+        return friendBalance.friend.name.toLowerCase().contains(lowercaseQuery) ||
+            friendBalance.friend.email.toLowerCase().contains(lowercaseQuery);
+      }).toList();
+
+      // Sort by relevance (name matches first, then email matches)
+      filteredFriends.sort((a, b) {
+        String lowercaseQuery = query.toLowerCase();
+        bool aNameMatch = a.friend.name.toLowerCase().contains(lowercaseQuery);
+        bool bNameMatch = b.friend.name.toLowerCase().contains(lowercaseQuery);
+
+        if (aNameMatch && !bNameMatch) return -1;
+        if (!aNameMatch && bNameMatch) return 1;
+
+        // Both have name matches or both don't - sort alphabetically
+        return a.friend.name.compareTo(b.friend.name);
+      });
+
+      print('🔍 Search results for "$query": ${filteredFriends.length} friends found');
+      return filteredFriends;
+    } catch (e) {
+      print('❌ Error searching friends: $e');
+      return [];
+    }
+  }
+
+  // Combined search for both groups and friends
+  Future<Map<String, dynamic>> searchAll(String query, String userId) async {
+    try {
+      final results = await Future.wait([
+        searchGroups(query, userId),
+        searchFriends(query, userId),
+      ]);
+
+      return {
+        'groups': results[0] as List<GroupModel>,
+        'friends': results[1] as List<FriendBalance>,
+        'totalResults': (results[0] as List).length + (results[1] as List).length,
+      };
+    } catch (e) {
+      print('❌ Error in combined search: $e');
+      return {
+        'groups': <GroupModel>[],
+        'friends': <FriendBalance>[],
+        'totalResults': 0,
+      };
+    }
+  }
+
+  // Search for users by email or name (for adding new friends)
+  Future<List<UserModel>> searchUsersGlobally(String query, String currentUserId) async {
+    try {
+      if (query.trim().isEmpty) return [];
+
+      String lowercaseQuery = query.toLowerCase();
+      List<UserModel> foundUsers = [];
+
+      // Search by email first (exact match)
+      if (query.contains('@')) {
+        List<UserModel> emailResults = await searchUsersByEmail(query);
+        foundUsers.addAll(emailResults);
+      }
+
+      // Search by name (partial match) - this would require a different Firestore structure
+      // For now, we'll limit to email search to avoid expensive queries
+      // In a production app, you might want to use Algolia or similar for text search
+
+      // Remove current user from results
+      foundUsers.removeWhere((user) => user.id == currentUserId);
+
+      print('🔍 Global user search for "$query": ${foundUsers.length} users found');
+      return foundUsers;
+    } catch (e) {
+      print('❌ Error in global user search: $e');
+      return [];
+    }
+  }
+
+  // Get search suggestions based on user's data
+  Future<List<String>> getSearchSuggestions(String userId) async {
+    try {
+      List<String> suggestions = [];
+
+      // Get user's groups
+      List<GroupModel> groups = await getUserGroups(userId);
+      suggestions.addAll(groups.map((group) => group.name));
+
+      // Get user's friends
+      List<FriendBalance> friends = await getUserFriendsWithBalances(userId);
+      suggestions.addAll(friends.map((friend) => friend.friend.name));
+
+      // Remove duplicates and sort
+      suggestions = suggestions.toSet().toList();
+      suggestions.sort();
+
+      return suggestions.take(10).toList(); // Limit to 10 suggestions
+    } catch (e) {
+      print('❌ Error getting search suggestions: $e');
+      return [];
+    }
+  }
+
+  // Stream-based search for real-time results
+  Stream<List<GroupModel>> streamSearchGroups(String query, String userId) {
+    if (query.trim().isEmpty) {
+      return streamUserGroups(userId);
+    }
+
+    return streamUserGroups(userId).map((groups) {
+      String lowercaseQuery = query.toLowerCase();
+      return groups.where((group) {
+        return group.name.toLowerCase().contains(lowercaseQuery) ||
+            (group.description?.toLowerCase().contains(lowercaseQuery) ?? false);
+      }).toList();
+    });
+  }
+
+  Stream<List<FriendBalance>> streamSearchFriends(String query, String userId) {
+    if (query.trim().isEmpty) {
+      return streamUserFriendsWithBalances(userId);
+    }
+
+    return streamUserFriendsWithBalances(userId).map((friends) {
+      String lowercaseQuery = query.toLowerCase();
+      return friends.where((friendBalance) {
+        return friendBalance.friend.name.toLowerCase().contains(lowercaseQuery) ||
+            friendBalance.friend.email.toLowerCase().contains(lowercaseQuery);
+      }).toList();
+    });
+  }
+
 // Helper method to calculate direct balance between two users in a specific group
   Future<double> _calculateDirectBalance(String userId, String friendId, String groupId) async {
     try {

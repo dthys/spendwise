@@ -10,6 +10,8 @@ import '../../models/friend_balance_model.dart';
 import '../groups/group_detail_screen.dart';
 import '../groups/groups_screen.dart';
 import '../home/settings_screen.dart';
+import '../search/search_screen.dart';
+import '../search/search_delegate.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -133,6 +135,84 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         _balanceController.add(0.0);
       }
     }
+  }
+
+  // Open search functionality
+  void _openSearch() {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
+
+    if (user != null) {
+      // Option 1: Smooth transition to SearchScreen
+      Navigator.push(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => SearchScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            // Slide up transition
+            const begin = Offset(0.0, 1.0);
+            const end = Offset.zero;
+            const curve = Curves.easeInOutCubic;
+
+            var tween = Tween(begin: begin, end: end).chain(
+              CurveTween(curve: curve),
+            );
+            var offsetAnimation = animation.drive(tween);
+
+            // Fade transition combined with slide
+            var fadeAnimation = animation.drive(
+              Tween(begin: 0.0, end: 1.0).chain(
+                CurveTween(curve: curve),
+              ),
+            );
+
+            return FadeTransition(
+              opacity: fadeAnimation,
+              child: SlideTransition(
+                position: offsetAnimation,
+                child: child,
+              ),
+            );
+          },
+          transitionDuration: Duration(milliseconds: 350),
+          reverseTransitionDuration: Duration(milliseconds: 300),
+        ),
+      );
+
+      // Option 2: Custom SearchDelegate with smooth animation
+      // _showCustomSearch(user.uid);
+    }
+  }
+
+  // Quick search bar widget
+  Widget _buildQuickSearchBar() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: GestureDetector(
+        onTap: _openSearch,
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search, color: Colors.grey.shade600),
+              SizedBox(width: 12),
+              Text(
+                'Search groups and friends...',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // Smooth navigation with smart refresh
@@ -734,6 +814,14 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
         actions: [
+          // Search icon
+          IconButton(
+            icon: Icon(Icons.search),
+            onPressed: _openSearch,
+            tooltip: 'Search',
+          ),
+
+          // Notifications
           user != null ? StreamBuilder<int>(
             stream: _databaseService.streamTotalUnreadActivities(user.uid),
             builder: (context, unreadSnapshot) {
@@ -783,6 +871,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             },
           ) : SizedBox.shrink(),
 
+          // Theme toggle
           Consumer<ThemeService>(
             builder: (context, themeService, child) {
               return IconButton(
@@ -793,6 +882,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             },
           ),
 
+          // Settings
           IconButton(
             icon: Icon(Icons.settings),
             onPressed: () {
@@ -913,6 +1003,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               ],
             ),
           ),
+
+          // Quick Search Bar (optional - you can comment this out if you don't want it)
+          _buildQuickSearchBar(),
 
           // Toggle Buttons
           _buildToggleButtons(),
