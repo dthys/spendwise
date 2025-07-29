@@ -6,6 +6,7 @@ import '../models/group_model.dart';
 import '../models/expense_model.dart';
 import '../models/settlement_model.dart';
 import '../services/notification_service.dart';
+import '../models/friend_balance_model.dart';
 
 
 class DatabaseService {
@@ -514,9 +515,35 @@ class DatabaseService {
         'groupId': groupId,
         'lastSeenActivityTime': now.millisecondsSinceEpoch,
         'updatedAt': now.millisecondsSinceEpoch,
+        // Add a trigger field that changes to force stream updates
+        'triggerUpdate': now.millisecondsSinceEpoch,
       }, SetOptions(merge: true));
 
       print('✅ Successfully updated last seen activity for $docId');
+
+      // IMPORTANT: Add a small artificial activity log entry to trigger the stream
+      // This won't be visible to users but will trigger the notification stream
+      await _firestore
+          .collection('activity_logs')
+          .doc('_trigger_${now.millisecondsSinceEpoch}')
+          .set({
+        'id': '_trigger_${now.millisecondsSinceEpoch}',
+        'groupId': 'SYSTEM_TRIGGER',
+        'userId': 'SYSTEM',
+        'userName': 'System',
+        'type': 'system_trigger',
+        'description': 'Notification refresh trigger',
+        'timestamp': now.millisecondsSinceEpoch,
+        'isSystemTrigger': true,
+      });
+
+      // Delete the trigger document immediately
+      await Future.delayed(Duration(milliseconds: 100));
+      await _firestore
+          .collection('activity_logs')
+          .doc('_trigger_${now.millisecondsSinceEpoch}')
+          .delete();
+
     } catch (e) {
       print('❌ Error updating last seen activity: $e');
     }
@@ -573,15 +600,49 @@ class DatabaseService {
 
   // Get total unread activities across all user groups
   Stream<int> streamTotalUnreadActivities(String userId) {
-    return streamUserGroups(userId).asyncMap((groups) async {
-      int totalUnread = 0;
+    return _firestore
+        .collection('activity_logs')
+        .snapshots()
+        .asyncMap((snapshot) async {
+      try {
+        // Get user's groups
+        List<GroupModel> groups = await getUserGroups(userId);
+        int totalUnread = 0;
 
-      for (GroupModel group in groups) {
-        int unreadCount = await getUnreadActivityCount(userId, group.id);
-        totalUnread += unreadCount;
+        print('🔔 === CALCULATING TOTAL UNREAD NOTIFICATIONS ===');
+        print('🔔 User has ${groups.length} groups');
+
+        for (GroupModel group in groups) {
+          try {
+            // Get last seen time for this group
+            DateTime? lastSeen = await getLastSeenActivity(userId, group.id);
+
+            // Count activities in this group after last seen time
+            Query query = _firestore
+                .collection('activity_logs')
+                .where('groupId', isEqualTo: group.id);
+
+            if (lastSeen != null) {
+              query = query.where('timestamp', isGreaterThan: lastSeen.millisecondsSinceEpoch);
+            }
+
+            QuerySnapshot groupActivities = await query.get();
+            int groupUnreadCount = groupActivities.docs.length;
+
+            totalUnread += groupUnreadCount;
+
+            print('🔔 Group "${group.name}": $groupUnreadCount unread activities');
+          } catch (e) {
+            print('❌ Error calculating unread for group ${group.id}: $e');
+          }
+        }
+
+        print('🔔 Total unread across all groups: $totalUnread');
+        return totalUnread;
+      } catch (e) {
+        print('❌ Error in streamTotalUnreadActivities: $e');
+        return 0;
       }
-
-      return totalUnread;
     });
   }
 
@@ -634,6 +695,146 @@ class DatabaseService {
       return snapshot.docs.map((doc) {
         return ActivityLogModel.fromMap(doc.data());
       }).toList();
+    });
+  }
+
+  // Get all friends with consolidated balances across all groups
+  Future<List<FriendBalance>> getUserFriendsWithBalances(String userId) async {
+    try {
+      print('🤝 === CALCULATING FRIENDS BALANCES ===');
+
+      // Get all user's groups
+      List<GroupModel> groups = await getUserGroups(userId);
+      print('📊 User has ${groups.length} groups');
+
+      // Map to store friend ID -> consolidated balance
+      Map<String, double> friendBalances = {};
+      // Map to store friend ID -> UserModel
+      Map<String, UserModel> friendDetails = {};
+      // Map to store friend ID -> list of groups shared
+      Map<String, List<String>> sharedGroups = {};
+
+      for (GroupModel group in groups) {
+        // Get balances for this group
+        Map<String, double> groupBalances = await calculateGroupBalancesWithSettlements(group.id);
+        double userBalanceInGroup = groupBalances[userId] ?? 0.0;
+
+        print('💰 Group "${group.name}": User balance = €${userBalanceInGroup.toStringAsFixed(2)}');
+
+        // Process each other member in the group
+        for (String memberId in group.memberIds) {
+          if (memberId == userId) continue; // Skip self
+
+          double memberBalanceInGroup = groupBalances[memberId] ?? 0.0;
+
+          // Calculate what this friend owes/is owed relative to current user
+          // If user has +50 and friend has -30, friend owes user some amount
+          // We need to calculate the direct relationship between these two users
+          double friendToUserBalance = await _calculateDirectBalance(userId, memberId, group.id);
+
+          // Add to consolidated balance
+          friendBalances[memberId] = (friendBalances[memberId] ?? 0.0) + friendToUserBalance;
+
+          // Store friend details if not already stored
+          if (!friendDetails.containsKey(memberId)) {
+            UserModel? friend = await getUser(memberId);
+            if (friend != null) {
+              friendDetails[memberId] = friend;
+            }
+          }
+
+          // Track shared groups
+          if (!sharedGroups.containsKey(memberId)) {
+            sharedGroups[memberId] = [];
+          }
+          sharedGroups[memberId]!.add(group.id);
+
+          print('👥 Friend ${friendDetails[memberId]?.name ?? memberId}: €${friendToUserBalance.toStringAsFixed(2)} in group "${group.name}"');
+        }
+      }
+
+      // Convert to FriendBalance objects
+      List<FriendBalance> friendsList = [];
+
+      for (String friendId in friendBalances.keys) {
+        UserModel? friend = friendDetails[friendId];
+        if (friend != null) {
+          double balance = friendBalances[friendId] ?? 0.0;
+
+          // Only include friends with non-zero balances or if you want to show all
+          // Comment out the if condition below to show all friends regardless of balance
+          if (balance.abs() > 0.01) {
+            friendsList.add(FriendBalance(
+              friend: friend,
+              balance: balance,
+              sharedGroupIds: sharedGroups[friendId] ?? [],
+              sharedGroupsCount: sharedGroups[friendId]?.length ?? 0,
+            ));
+          }
+        }
+      }
+
+      // Sort by balance (highest owed to you first, then what you owe)
+      friendsList.sort((a, b) => b.balance.compareTo(a.balance));
+
+      print('🤝 Final friends list: ${friendsList.length} friends with balances');
+      for (var friend in friendsList) {
+        print('👤 ${friend.friend.name}: €${friend.balance.toStringAsFixed(2)} (${friend.sharedGroupsCount} groups)');
+      }
+
+      return friendsList;
+    } catch (e) {
+      print('❌ Error calculating friends balances: $e');
+      return [];
+    }
+  }
+
+// Helper method to calculate direct balance between two users in a specific group
+  Future<double> _calculateDirectBalance(String userId, String friendId, String groupId) async {
+    try {
+      // Get all expenses in the group
+      List<ExpenseModel> expenses = await getGroupExpenses(groupId);
+      List<SettlementModel> settlements = await getGroupSettlements(groupId);
+
+      double directBalance = 0.0;
+
+      for (ExpenseModel expense in expenses) {
+        // Check if both users are involved in this expense
+        bool userInvolved = expense.paidBy == userId || expense.splitBetween.contains(userId);
+        bool friendInvolved = expense.paidBy == friendId || expense.splitBetween.contains(friendId);
+
+        if (!userInvolved || !friendInvolved) continue;
+
+        // Check if this expense portion is settled between these two users
+        bool isSettled = settlements.any((settlement) =>
+        settlement.settledExpenseIds.contains(expense.id) &&
+            ((settlement.fromUserId == userId && settlement.toUserId == friendId) ||
+                (settlement.fromUserId == friendId && settlement.toUserId == userId))
+        );
+
+        if (isSettled) continue; // Skip settled expenses
+
+        // Calculate the direct relationship for this expense
+        if (expense.paidBy == userId && expense.splitBetween.contains(friendId)) {
+          // User paid, friend owes their share
+          directBalance += expense.getAmountOwedBy(friendId);
+        } else if (expense.paidBy == friendId && expense.splitBetween.contains(userId)) {
+          // Friend paid, user owes their share
+          directBalance -= expense.getAmountOwedBy(userId);
+        }
+      }
+
+      return directBalance;
+    } catch (e) {
+      print('❌ Error calculating direct balance: $e');
+      return 0.0;
+    }
+  }
+
+// Stream version for real-time updates
+  Stream<List<FriendBalance>> streamUserFriendsWithBalances(String userId) {
+    return streamUserGroups(userId).asyncMap((groups) async {
+      return await getUserFriendsWithBalances(userId);
     });
   }
 

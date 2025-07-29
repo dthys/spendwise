@@ -6,6 +6,7 @@ import '../../services/database_service.dart';
 import '../../services/theme_service.dart';
 import '../../models/group_model.dart';
 import '../../models/user_model.dart';
+import '../../models/friend_balance_model.dart';
 import '../groups/group_detail_screen.dart';
 import '../groups/groups_screen.dart';
 import '../home/settings_screen.dart';
@@ -25,6 +26,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   // Cache to prevent unnecessary rebuilds
   double? _cachedBalance;
   DateTime? _lastBalanceUpdate;
+
+  // Toggle between Groups and Friends view
+  bool _showingFriends = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -245,6 +249,476 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     );
   }
 
+  void _showFriendDetailsDialog(BuildContext context, FriendBalance friendBalance) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            CircleAvatar(
+              backgroundImage: friendBalance.friend.photoUrl != null
+                  ? NetworkImage(friendBalance.friend.photoUrl!)
+                  : null,
+              backgroundColor: friendBalance.balanceColor.withOpacity(0.2),
+              child: friendBalance.friend.photoUrl == null
+                  ? Text(
+                friendBalance.friend.name.substring(0, 1).toUpperCase(),
+                style: TextStyle(
+                  color: friendBalance.balanceColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+                  : null,
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    friendBalance.friend.name,
+                    style: TextStyle(fontSize: 18),
+                  ),
+                  Text(
+                    friendBalance.balanceText,
+                    style: TextStyle(
+                      color: friendBalance.balanceColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Shared Groups (${friendBalance.sharedGroupsCount}):',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            SizedBox(height: 8),
+            Container(
+              constraints: BoxConstraints(maxHeight: 200),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: friendBalance.sharedGroupIds.length,
+                itemBuilder: (context, index) {
+                  String groupId = friendBalance.sharedGroupIds[index];
+                  return FutureBuilder<GroupModel?>(
+                    future: _databaseService.getGroup(groupId),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData && snapshot.data != null) {
+                        return Padding(
+                          padding: EdgeInsets.symmetric(vertical: 2),
+                          child: Row(
+                            children: [
+                              Icon(Icons.group, size: 16, color: Colors.grey),
+                              SizedBox(width: 8),
+                              Expanded(child: Text(snapshot.data!.name)),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _navigateWithTransition(GroupDetailScreen(groupId: groupId));
+                                },
+                                child: Text('View'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      return SizedBox.shrink();
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Build the toggle buttons
+  Widget _buildToggleButtons() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(25),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _showingFriends = false;
+                });
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: !_showingFriends ? Theme.of(context).primaryColor : Colors.transparent,
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.group,
+                      color: !_showingFriends ? Colors.white : Colors.grey.shade600,
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Groups',
+                      style: TextStyle(
+                        color: !_showingFriends ? Colors.white : Colors.grey.shade600,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _showingFriends = true;
+                });
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: _showingFriends ? Theme.of(context).primaryColor : Colors.transparent,
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.people,
+                      color: _showingFriends ? Colors.white : Colors.grey.shade600,
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Friends',
+                      style: TextStyle(
+                        color: _showingFriends ? Colors.white : Colors.grey.shade600,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Build Friends View
+  Widget _buildFriendsView(String userId) {
+    return StreamBuilder<List<FriendBalance>>(
+      stream: _databaseService.streamUserFriendsWithBalances(userId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error, size: 48, color: Colors.red),
+                SizedBox(height: 16),
+                Text('Error loading friends'),
+                SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => setState(() {}),
+                  child: Text('Retry'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        List<FriendBalance> friends = snapshot.data ?? [];
+
+        if (friends.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.people_outline,
+                  size: 64,
+                  color: Colors.grey.shade400,
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'No friends with balances yet',
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Add friends to groups to see\nyour balances with them',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: EdgeInsets.symmetric(horizontal: 24),
+          itemCount: friends.length,
+          itemBuilder: (context, index) {
+            FriendBalance friendBalance = friends[index];
+
+            return Container(
+              margin: EdgeInsets.only(bottom: 12),
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                elevation: 2,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _showFriendDetailsDialog(context, friendBalance),
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 24,
+                          backgroundImage: friendBalance.friend.photoUrl != null
+                              ? NetworkImage(friendBalance.friend.photoUrl!)
+                              : null,
+                          backgroundColor: friendBalance.balanceColor.withOpacity(0.2),
+                          child: friendBalance.friend.photoUrl == null
+                              ? Text(
+                            friendBalance.friend.name.substring(0, 1).toUpperCase(),
+                            style: TextStyle(
+                              color: friendBalance.balanceColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                              : null,
+                        ),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                friendBalance.friend.name,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                friendBalance.balanceText,
+                                style: TextStyle(
+                                  color: friendBalance.balanceColor,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                '${friendBalance.sharedGroupsCount} shared group${friendBalance.sharedGroupsCount != 1 ? 's' : ''}',
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          children: [
+                            Icon(
+                              friendBalance.balanceIcon,
+                              color: friendBalance.balanceColor,
+                              size: 20,
+                            ),
+                            SizedBox(height: 4),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              size: 14,
+                              color: Colors.grey.shade400,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Build Groups View
+  Widget _buildGroupsView(String userId) {
+    return Column(
+      children: [
+        // Header with "New Group" button
+        Padding(
+          padding: EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Your Groups',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  _navigateWithTransition(GroupsScreen());
+                },
+                icon: Icon(Icons.add),
+                label: Text('New Group'),
+              ),
+            ],
+          ),
+        ),
+
+        // Groups List
+        Expanded(
+          child: StreamBuilder<List<GroupModel>>(
+            stream: _databaseService.streamUserGroups(userId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(child: CircularProgressIndicator());
+              }
+
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.group_add,
+                        size: 64,
+                        color: Colors.grey.shade400,
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'No groups yet',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Create your first group to start\nsplitting expenses with friends!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                      SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          _navigateWithTransition(GroupsScreen());
+                        },
+                        icon: Icon(Icons.add),
+                        label: Text('Create Group'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade500,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              List<GroupModel> groups = snapshot.data!;
+              return ListView.builder(
+                padding: EdgeInsets.symmetric(horizontal: 24),
+                itemCount: groups.length,
+                itemBuilder: (context, index) {
+                  GroupModel group = groups[index];
+                  return Hero(
+                    tag: 'group_${group.id}',
+                    child: Card(
+                      margin: EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          child: Text(
+                            group.name.substring(0, 1).toUpperCase(),
+                            style: TextStyle(
+                              color: Theme.of(context).primaryColor.computeLuminance() > 0.5
+                                  ? Colors.black
+                                  : Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          group.name,
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          '${group.memberIds.length} members • ${group.currency}',
+                        ),
+                        trailing: Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          _navigateWithTransition(GroupDetailScreen(groupId: group.id));
+                        },
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
@@ -261,19 +735,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         elevation: 0,
         actions: [
           user != null ? StreamBuilder<int>(
-            stream: _databaseService.streamUserGroups(user.uid).asyncMap((groups) async {
-              print('🏠 HomeScreen: Processing ${groups.length} groups for notifications');
-              int totalUnread = 0;
-
-              for (GroupModel group in groups) {
-                int unreadCount = await _databaseService.getUnreadActivityCount(user.uid, group.id);
-                print('🏠 HomeScreen: Group ${group.name}: $unreadCount unread');
-                totalUnread += unreadCount;
-              }
-
-              print('🏠 HomeScreen: Total unread activities: $totalUnread');
-              return totalUnread;
-            }),
+            stream: _databaseService.streamTotalUnreadActivities(user.uid),
             builder: (context, unreadSnapshot) {
               int totalUnread = unreadSnapshot.data ?? 0;
 
@@ -344,6 +806,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           ? Center(child: CircularProgressIndicator())
           : Column(
         children: [
+          // Balance Header
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
@@ -451,134 +914,14 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             ),
           ),
 
+          // Toggle Buttons
+          _buildToggleButtons(),
+
+          // Content Area
           Expanded(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Your Groups',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade800,
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () {
-                          _navigateWithTransition(GroupsScreen());
-                        },
-                        icon: Icon(Icons.add),
-                        label: Text('New Group'),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-
-                  Expanded(
-                    child: StreamBuilder<List<GroupModel>>(
-                      stream: _databaseService.streamUserGroups(user.uid),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return Center(child: CircularProgressIndicator());
-                        }
-
-                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.group_add,
-                                  size: 64,
-                                  color: Colors.grey.shade400,
-                                ),
-                                SizedBox(height: 16),
-                                Text(
-                                  'No groups yet',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.grey.shade600,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                SizedBox(height: 8),
-                                Text(
-                                  'Create your first group to start\nsplitting expenses with friends!',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.grey.shade500,
-                                  ),
-                                ),
-                                SizedBox(height: 24),
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    _navigateWithTransition(GroupsScreen());
-                                  },
-                                  icon: Icon(Icons.add),
-                                  label: Text('Create Group'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blue.shade500,
-                                    foregroundColor: Colors.white,
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-
-                        List<GroupModel> groups = snapshot.data!;
-                        return ListView.builder(
-                          itemCount: groups.length,
-                          itemBuilder: (context, index) {
-                            GroupModel group = groups[index];
-                            return Hero(
-                              tag: 'group_${group.id}',
-                              child: Card(
-                                margin: EdgeInsets.only(bottom: 12),
-                                child: ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor: Theme.of(context).primaryColor,
-                                    child: Text(
-                                      group.name.substring(0, 1).toUpperCase(),
-                                      style: TextStyle(
-                                        color: Theme.of(context).primaryColor.computeLuminance() > 0.5
-                                            ? Colors.black
-                                            : Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                  title: Text(
-                                    group.name,
-                                    style: TextStyle(fontWeight: FontWeight.w600),
-                                  ),
-                                  subtitle: Text(
-                                    '${group.memberIds.length} members • ${group.currency}',
-                                  ),
-                                  trailing: Icon(Icons.arrow_forward_ios, size: 16),
-                                  onTap: () {
-                                    _navigateWithTransition(GroupDetailScreen(groupId: group.id));
-                                  },
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            child: _showingFriends
+                ? _buildFriendsView(user.uid)
+                : _buildGroupsView(user.uid),
           ),
         ],
       ),
