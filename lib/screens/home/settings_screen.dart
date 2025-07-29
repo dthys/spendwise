@@ -10,8 +10,7 @@ import '../../services/database_service.dart';
 import '../../services/biometric_service.dart';
 import '../../models/user_model.dart';
 import '../../dialogs/auth_dialogs.dart';
-import 'notification_settings_screen.dart';
-
+import 'notification_settings_screen.dart'; // Add this import
 
 class SettingsScreen extends StatefulWidget {
   @override
@@ -529,25 +528,91 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       fontSize: 16,
                     ),
                   ),
-                  // Email verification status
+                  // Improved email verification status
                   Consumer<AuthService>(
                     builder: (context, authService, child) {
                       if (!authService.isEmailVerified) {
                         return Container(
-                          margin: EdgeInsets.only(top: 8),
-                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          margin: EdgeInsets.only(top: 12),
+                          padding: EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.orange.shade500,
+                            color: Colors.orange.shade50,
                             borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.shade200),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                          child: Column(
                             children: [
-                              Icon(Icons.warning, color: Colors.white, size: 16),
-                              SizedBox(width: 4),
+                              Row(
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, color: Colors.orange.shade600, size: 20),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Email not verified',
+                                      style: TextStyle(
+                                        color: Colors.orange.shade700,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () async {
+                                      try {
+                                        await authService.sendEmailVerification();
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Row(
+                                              children: [
+                                                Icon(Icons.email, color: Colors.white, size: 20),
+                                                SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text('Verification email sent! Check your inbox.'),
+                                                ),
+                                              ],
+                                            ),
+                                            backgroundColor: Colors.green,
+                                            duration: Duration(seconds: 4),
+                                            behavior: SnackBarBehavior.floating,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        );
+                                      } catch (e) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Failed to send verification email'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      backgroundColor: Colors.orange.shade500,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Verify',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 8),
                               Text(
-                                'Email not verified',
-                                style: TextStyle(color: Colors.white, fontSize: 12),
+                                'Please verify your email to secure your account and receive important updates.',
+                                style: TextStyle(
+                                  color: Colors.orange.shade600,
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
@@ -585,10 +650,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   _buildSettingsTile(
                     icon: Icons.account_balance,
-                    title: 'Bank account',
+                    title: 'Bankrekening',
                     subtitle: _currentUser?.bankAccount != null
                         ? 'IBAN: ${BankingService.formatIBAN(_currentUser!.bankAccount!)}'
-                        : 'No bank account added',
+                        : 'Geen bankrekening toegevoegd',
                     onTap: _showBankAccountDialog,
                     trailing: _currentUser?.bankAccount != null
                         ? Icon(Icons.check_circle, color: Colors.green, size: 20)
@@ -648,7 +713,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   SizedBox(height: 24),
 
-// Notifications Section
+                  // Notifications Section - Now simplified to single tile
                   _buildSectionHeader('Notifications'),
                   _buildSettingsTile(
                     icon: Icons.notifications_outlined,
