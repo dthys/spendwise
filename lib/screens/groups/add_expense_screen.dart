@@ -252,35 +252,17 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
       print('🧪 Creating expense...');
 
-      // Create the expense first
-      String expenseId = await _databaseService.createExpense(expense);
+      // FIXED: Create the expense with currentUserId parameter for notifications
+      String expenseId = await _databaseService.createExpense(
+        expense,
+        currentUserId: currentUser.uid,  // Pass current user ID for notifications
+      );
 
-      print('✅ Expense created with ID: $expenseId');
-      print('🧪 Creating activity log...');
-
-      // Create activity log entry
-      await _databaseService.addActivityLog(ActivityLogModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        groupId: widget.group.id,
-        userId: currentUser.uid,
-        userName: currentUser.displayName ?? currentUser.email ?? 'Unknown',
-        type: ActivityType.expenseAdded,
-        description: 'Added expense "${expense.description}" (${widget.group.currency} ${expense.amount.toStringAsFixed(2)})',
-        metadata: {
-          'expenseId': expenseId,
-          'expense': expense.toMap(),
-          'category': expense.category.displayName,
-          'splitBetweenCount': expense.splitBetween.length,
-          'splitType': expense.splitType.name,
-        },
-        timestamp: DateTime.now(),
-      ));
-
-      print('✅ Activity log created successfully');
+      print('✅ Expense created with ID: $expenseId and notifications sent');
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Expense added successfully!'),
+          content: Text('💰 Expense added successfully!'),
           backgroundColor: Colors.green,
         ),
       );
@@ -319,6 +301,30 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Info banner
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: theme.primaryColor.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.notifications_active, color: theme.primaryColor),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Group members will be notified about this expense.',
+                        style: TextStyle(color: colorScheme.onSurface),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 24),
+
               // Description
               TextFormField(
                 controller: _descriptionController,

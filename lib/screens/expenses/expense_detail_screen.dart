@@ -105,7 +105,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
           style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
         ),
         content: Text(
-          'Are you sure you want to delete "${widget.expense.description}"?\n\nThis action cannot be undone and will be visible to all group members.',
+          'Are you sure you want to delete "${widget.expense.description}"?\n\nThis action cannot be undone and group members will be notified.',
           style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
         ),
         actions: [
@@ -130,27 +130,15 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     setState(() => _isDeleting = true);
 
     try {
-      // Create activity log entry
-      await _databaseService.addActivityLog(ActivityLogModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        groupId: widget.group.id,
-        userId: currentUser.uid,
-        userName: currentUser.displayName ?? currentUser.email ?? 'Unknown',
-        type: ActivityType.expenseDeleted,
-        description: 'Deleted expense "${widget.expense.description}" (${_formatCurrency(widget.expense.amount)})',
-        metadata: {
-          'expenseId': widget.expense.id,
-          'originalExpense': widget.expense.toMap(),
-        },
-        timestamp: DateTime.now(),
-      ));
-
-      // Delete the expense
-      await _databaseService.deleteExpense(widget.expense.id);
+      // FIXED: Delete the expense with currentUserId parameter for notifications
+      await _databaseService.deleteExpense(
+        widget.expense.id,
+        currentUserId: currentUser.uid,  // Pass current user ID for notifications
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Expense deleted successfully'),
+          content: Text('🗑️ Expense deleted successfully'),
           backgroundColor: Colors.green,
         ),
       );
@@ -189,10 +177,21 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
             IconButton(
               icon: Icon(Icons.edit),
               onPressed: _editExpense,
+              tooltip: 'Edit Expense',
             ),
             IconButton(
-              icon: Icon(Icons.delete),
+              icon: _isDeleting
+                  ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.appBarTheme.foregroundColor,
+                ),
+              )
+                  : Icon(Icons.delete),
               onPressed: _isDeleting ? null : _deleteExpense,
+              tooltip: 'Delete Expense',
             ),
           ],
         ],
@@ -271,6 +270,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                           _buildDetailRow('Category', '${widget.expense.category.emoji} ${widget.expense.category.displayName}'),
                           _buildDetailRow('Date', '${widget.expense.date.day}/${widget.expense.date.month}/${widget.expense.date.year}'),
                           _buildDetailRow('Added on', '${widget.expense.createdAt.day}/${widget.expense.createdAt.month}/${widget.expense.createdAt.year}'),
+                          _buildDetailRow('Split type', widget.expense.splitType.name.toUpperCase()),
                           if (widget.expense.notes != null)
                             _buildDetailRow('Notes', widget.expense.notes!),
                         ],
@@ -308,7 +308,10 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                             ),
                             title: Text(
                               paidByUser?.name ?? 'Unknown User',
-                              style: TextStyle(color: colorScheme.onSurface),
+                              style: TextStyle(
+                                color: colorScheme.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             subtitle: Text(
                               paidByUser?.email ?? '',
@@ -319,7 +322,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
-                                color: colorScheme.onSurface,
+                                color: Colors.green.shade600,
                               ),
                             ),
                           ),
@@ -362,7 +365,10 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                               ),
                               title: Text(
                                 user?.name ?? 'Unknown User',
-                                style: TextStyle(color: colorScheme.onSurface),
+                                style: TextStyle(
+                                  color: colorScheme.onSurface,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                               subtitle: Text(
                                 user?.email ?? '',
@@ -401,6 +407,28 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                             child: Text(
                               'You can only edit or delete expenses you paid for.',
                               style: TextStyle(color: Colors.orange.shade700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    SizedBox(height: 16),
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.notifications_active, color: Colors.blue.shade600),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Changes to this expense will notify all group members.',
+                              style: TextStyle(color: Colors.blue.shade700),
                             ),
                           ),
                         ],

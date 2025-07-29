@@ -7,9 +7,11 @@ import 'models/user_model.dart';
 import 'services/auth_service.dart';
 import 'services/theme_service.dart';
 import 'services/biometric_service.dart';
+import 'services/notification_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/splash/splash_screen.dart';
+import 'screens/expenses/activity_log_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +27,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthService()),
         ChangeNotifierProvider(create: (_) => ThemeService()),
         ChangeNotifierProvider(create: (_) => BiometricService()),
+        ChangeNotifierProvider(create: (_) => NotificationService()), // Add this
       ],
       child: Consumer<ThemeService>(
         builder: (context, themeService, child) {
@@ -41,6 +44,14 @@ class MyApp extends StatelessWidget {
             home: SplashScreen(
               nextScreen: AuthWrapper(),
             ),
+
+            // Add navigation routes
+            routes: {
+              '/activity-log': (context) {
+                final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+                return ActivityLogScreen(groupId: args['groupId']);
+              },
+            },
 
             // Global theme overrides if needed
             builder: (context, child) {
@@ -65,11 +76,27 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _hasAuthenticatedBiometric = false; // Track if we've already done biometric auth
+  bool _notificationsInitialized = false; // Track notification initialization
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<AuthService, BiometricService>(
-      builder: (context, authService, biometricService, child) {
+    return Consumer3<AuthService, BiometricService, NotificationService>(
+      builder: (context, authService, biometricService, notificationService, child) {
+        // Initialize notifications when user is authenticated
+        if (authService.currentUser != null && !_notificationsInitialized) {
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            try {
+              await notificationService.initialize(context);
+              setState(() {
+                _notificationsInitialized = true;
+              });
+              print('✅ Notifications initialized');
+            } catch (e) {
+              print('❌ Failed to initialize notifications: $e');
+            }
+          });
+        }
+
         if (authService.isLoading) {
           return Scaffold(
             body: Center(child: CircularProgressIndicator()),
@@ -147,6 +174,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                               authService.signOut();
                               setState(() {
                                 _hasAuthenticatedBiometric = false;
+                                _notificationsInitialized = false;
                               });
                             },
                             child: Text('Sign Out'),
@@ -172,11 +200,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
             return _buildHomeScreen(authService);
           }
         } else {
-          // Not logged in - reset biometric auth flag
+          // Not logged in - reset flags
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_hasAuthenticatedBiometric) {
+            if (_hasAuthenticatedBiometric || _notificationsInitialized) {
               setState(() {
                 _hasAuthenticatedBiometric = false;
+                _notificationsInitialized = false;
               });
             }
           });

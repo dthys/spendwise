@@ -335,25 +335,12 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         return;
       }
 
-      // Update expense in database
-      await _databaseService.updateExpense(updatedExpense);
-
-      // Create activity log entry
-      await _databaseService.addActivityLog(ActivityLogModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        groupId: widget.group.id,
-        userId: currentUser.uid,
-        userName: currentUser.displayName ?? currentUser.email ?? 'Unknown',
-        type: ActivityType.expenseEdited,
-        description: 'Edited expense "${updatedExpense.description}"',
-        metadata: {
-          'expenseId': widget.expense.id,
-          'changes': changes,
-          'originalExpense': _originalExpense.toMap(),
-          'updatedExpense': updatedExpense.toMap(),
-        },
-        timestamp: DateTime.now(),
-      ));
+      // Update expense in database - FIXED: Pass both parameters and currentUserId
+      await _databaseService.updateExpense(
+        updatedExpense,
+        _originalExpense,  // Pass the original expense for changes tracking
+        currentUserId: currentUser.uid,  // Pass current user ID for notifications
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -410,7 +397,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Changes will be logged and visible to all group members.',
+                        'Changes will be logged and group members will be notified.',
                         style: TextStyle(color: colorScheme.onSurface),
                       ),
                     ),

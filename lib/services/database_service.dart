@@ -5,6 +5,8 @@ import '../models/user_model.dart';
 import '../models/group_model.dart';
 import '../models/expense_model.dart';
 import '../models/settlement_model.dart';
+import '../services/notification_service.dart';
+
 
 class DatabaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -24,6 +26,34 @@ class DatabaseService {
       await _users.doc(user.id).set(user.toMap());
     } catch (e) {
       throw Exception('Failed to create user: $e');
+    }
+  }
+
+  // Updated addActivityLog method with notification support
+  Future<void> addActivityLog(ActivityLogModel activityLog, {String? currentUserId}) async {
+    try {
+      // Add to Firestore
+      await _firestore
+          .collection('activity_logs')
+          .doc(activityLog.id)
+          .set(activityLog.toMap());
+
+      print('✅ Activity log added: ${activityLog.description}');
+
+      // Send notification if currentUserId is provided
+      if (currentUserId != null) {
+        try {
+          final notificationService = NotificationService();
+          await notificationService.sendActivityNotification(activityLog, currentUserId);
+          print('📱 Notification sent for activity: ${activityLog.type}');
+        } catch (e) {
+          print('❌ Failed to send notification: $e');
+          // Don't fail the activity log if notification fails
+        }
+      }
+    } catch (e) {
+      print('❌ Error adding activity log: $e');
+      throw e;
     }
   }
 
@@ -248,20 +278,23 @@ class DatabaseService {
       // Remove user from group
       await removeUserFromGroup(groupId, userId);
 
-      // Add activity log - FIXED to match your ActivityLogModel
-      await addActivityLog(ActivityLogModel(
-        id: _firestore.collection('activity_logs').doc().id,
-        groupId: groupId,
-        userId: userId,
-        userName: userName,
-        type: ActivityType.memberRemoved,
-        description: '$userName left the group',
-        metadata: {
-          'action': 'left_group',
-          'leftAt': DateTime.now().millisecondsSinceEpoch,
-        },
-        timestamp: DateTime.now(),
-      ));
+      // Add activity log with notification - UPDATED
+      await addActivityLog(
+          ActivityLogModel(
+            id: _firestore.collection('activity_logs').doc().id,
+            groupId: groupId,
+            userId: userId,
+            userName: userName,
+            type: ActivityType.memberRemoved,
+            description: '$userName left the group',
+            metadata: {
+              'action': 'left_group',
+              'leftAt': DateTime.now().millisecondsSinceEpoch,
+            },
+            timestamp: DateTime.now(),
+          ),
+          currentUserId: userId, // Pass current user ID
+      );
 
       print('✅ User $userId successfully left group $groupId');
       return true;
@@ -272,7 +305,7 @@ class DatabaseService {
   }
 
   // Add member to existing group - FIXED VERSION
-  Future<void> addMemberToExistingGroup(String groupId, String userEmail) async {
+  Future<void> addMemberToExistingGroup(String groupId, String userEmail, {String? currentUserId}) async {
     try {
       // Find user by email
       List<UserModel> users = await searchUsersByEmail(userEmail);
@@ -296,21 +329,24 @@ class DatabaseService {
       // Add user to group
       await addUserToGroup(groupId, userToAdd.id);
 
-      // Add activity log - FIXED to match your ActivityLogModel
-      await addActivityLog(ActivityLogModel(
-        id: _firestore.collection('activity_logs').doc().id,
-        groupId: groupId,
-        userId: userToAdd.id,
-        userName: userToAdd.name,
-        type: ActivityType.memberAdded,
-        description: '${userToAdd.name} was added to the group',
-        metadata: {
-          'action': 'joined_group',
-          'email': userToAdd.email,
-          'addedAt': DateTime.now().millisecondsSinceEpoch,
-        },
-        timestamp: DateTime.now(),
-      ));
+      // Add activity log with notification - UPDATED
+      await addActivityLog(
+        ActivityLogModel(
+          id: _firestore.collection('activity_logs').doc().id,
+          groupId: groupId,
+          userId: userToAdd.id,
+          userName: userToAdd.name,
+          type: ActivityType.memberAdded,
+          description: '${userToAdd.name} was added to the group',
+          metadata: {
+            'action': 'joined_group',
+            'email': userToAdd.email,
+            'addedAt': DateTime.now().millisecondsSinceEpoch,
+          },
+          timestamp: DateTime.now(),
+        ),
+        currentUserId: currentUserId, // Pass current user ID
+      );
 
       print('✅ Successfully added ${userToAdd.name} to group $groupId');
     } catch (e) {
@@ -336,21 +372,24 @@ class DatabaseService {
       UserModel? user = await getUser(userId);
       String userName = user?.name ?? 'Unknown User';
 
-      // Add final activity log before deletion
-      await addActivityLog(ActivityLogModel(
-        id: _firestore.collection('activity_logs').doc().id,
-        groupId: groupId,
-        userId: userId,
-        userName: userName,
-        type: ActivityType.other,
-        description: '$userName deleted the group',
-        metadata: {
-          'action': 'group_deleted',
-          'deletedAt': DateTime.now().millisecondsSinceEpoch,
-          'finalMemberCount': group.memberIds.length,
-        },
-        timestamp: DateTime.now(),
-      ));
+      // Add final activity log before deletion with notification
+      await addActivityLog(
+        ActivityLogModel(
+          id: _firestore.collection('activity_logs').doc().id,
+          groupId: groupId,
+          userId: userId,
+          userName: userName,
+          type: ActivityType.other,
+          description: '$userName deleted the group',
+          metadata: {
+            'action': 'group_deleted',
+            'deletedAt': DateTime.now().millisecondsSinceEpoch,
+            'finalMemberCount': group.memberIds.length,
+          },
+          timestamp: DateTime.now(),
+        ),
+        currentUserId: userId, // Pass current user ID
+      );
 
       // Wait a moment for the activity log to be written
       await Future.delayed(Duration(milliseconds: 500));
@@ -584,19 +623,6 @@ class DatabaseService {
     }
   }
 
-  // Activity Log Methods
-  Future<void> addActivityLog(ActivityLogModel activityLog) async {
-    try {
-      await _firestore
-          .collection('activity_logs')
-          .doc(activityLog.id)
-          .set(activityLog.toMap());
-    } catch (e) {
-      print('Error adding activity log: $e');
-      throw e;
-    }
-  }
-
   Stream<List<ActivityLogModel>> streamGroupActivityLogs(String groupId) {
     return _firestore
         .collection('activity_logs')
@@ -611,42 +637,155 @@ class DatabaseService {
     });
   }
 
-  // Update createExpense to return the ID
-  Future<String> createExpense(ExpenseModel expense) async {
+  Future<void> updateExpense(ExpenseModel expense, ExpenseModel? oldExpense, {String? currentUserId}) async {
+    try {
+      await _firestore
+          .collection('expenses')
+          .doc(expense.id)
+          .update(expense.toMap());
+
+      // Get user details for activity log
+      UserModel? user = await getUser(expense.paidBy);
+      String userName = user?.name ?? 'Unknown User';
+
+      // Create change list for metadata
+      List<String> changes = [];
+      if (oldExpense != null) {
+        if (oldExpense.description != expense.description) {
+          changes.add('Description: "${oldExpense.description}" → "${expense.description}"');
+        }
+        if (oldExpense.amount != expense.amount) {
+          changes.add('Amount: €${oldExpense.amount.toStringAsFixed(2)} → €${expense.amount.toStringAsFixed(2)}');
+        }
+        if (oldExpense.category != expense.category) {
+          changes.add('Category: ${oldExpense.category.displayName} → ${expense.category.displayName}');
+        }
+        if (oldExpense.paidBy != expense.paidBy) {
+          UserModel? oldPayer = await getUser(oldExpense.paidBy);
+          UserModel? newPayer = await getUser(expense.paidBy);
+          changes.add('Paid by: ${oldPayer?.name ?? 'Unknown'} → ${newPayer?.name ?? 'Unknown'}');
+        }
+        if (oldExpense.splitType != expense.splitType) {
+          changes.add('Split type: ${oldExpense.splitType.name} → ${expense.splitType.name}');
+        }
+        if (oldExpense.date != expense.date) {
+          changes.add('Date: ${oldExpense.date.day}/${oldExpense.date.month}/${oldExpense.date.year} → ${expense.date.day}/${expense.date.month}/${expense.date.year}');
+        }
+      }
+
+      // Add activity log with notification
+      await addActivityLog(
+        ActivityLogModel(
+          id: _firestore.collection('activity_logs').doc().id,
+          groupId: expense.groupId,
+          userId: expense.paidBy,
+          userName: userName,
+          type: ActivityType.expenseEdited,
+          description: '$userName edited expense: ${expense.description}',
+          metadata: {
+            'expenseId': expense.id,
+            'changes': changes,
+            'newAmount': expense.amount,
+            'newDescription': expense.description,
+            'originalExpense': oldExpense?.toMap(),
+            'updatedExpense': expense.toMap(),
+          },
+          timestamp: DateTime.now(),
+        ),
+        currentUserId: currentUserId,
+      );
+
+      print('✅ Expense updated and notification sent');
+    } catch (e) {
+      print('❌ Error updating expense: $e');
+      throw e;
+    }
+  }
+
+// Updated createExpense method (already correct, but for completeness)
+  Future<String> createExpense(ExpenseModel expense, {String? currentUserId}) async {
     try {
       DocumentReference docRef = await _firestore.collection('expenses').add(expense.toMap());
 
       // Update the expense with the generated ID
       await docRef.update({'id': docRef.id});
 
+      // Get user details for activity log
+      UserModel? user = await getUser(expense.paidBy);
+      String userName = user?.name ?? 'Unknown User';
+
+      // Add activity log with notification
+      await addActivityLog(
+        ActivityLogModel(
+          id: _firestore.collection('activity_logs').doc().id,
+          groupId: expense.groupId,
+          userId: expense.paidBy,
+          userName: userName,
+          type: ActivityType.expenseAdded,
+          description: '$userName added expense: ${expense.description}',
+          metadata: {
+            'expenseId': docRef.id,
+            'amount': expense.amount,
+            'description': expense.description,
+            'category': expense.category.displayName,
+            'expense': expense.toMap(),
+          },
+          timestamp: DateTime.now(),
+        ),
+        currentUserId: currentUserId,
+      );
+
+      print('✅ Expense created with ID: ${docRef.id} and notification sent');
       return docRef.id; // Return the generated ID
     } catch (e) {
-      print('Error creating expense: $e');
+      print('❌ Error creating expense: $e');
       throw e;
     }
   }
 
-  // Expense Update/Delete Methods
-  Future<void> updateExpense(ExpenseModel expense) async {
+// Updated deleteExpense method (already correct, but for completeness)
+  Future<void> deleteExpense(String expenseId, {String? currentUserId}) async {
     try {
-      await _firestore
-          .collection('expenses')
-          .doc(expense.id)
-          .update(expense.toMap());
-    } catch (e) {
-      print('Error updating expense: $e');
-      throw e;
-    }
-  }
+      // Get expense details before deletion
+      ExpenseModel? expense = await getExpense(expenseId);
+      if (expense == null) {
+        throw Exception('Expense not found');
+      }
 
-  Future<void> deleteExpense(String expenseId) async {
-    try {
+      // Delete the expense
       await _firestore
           .collection('expenses')
           .doc(expenseId)
           .delete();
+
+      // Get user details for activity log
+      UserModel? user = await getUser(expense.paidBy);
+      String userName = user?.name ?? 'Unknown User';
+
+      // Add activity log with notification
+      await addActivityLog(
+        ActivityLogModel(
+          id: _firestore.collection('activity_logs').doc().id,
+          groupId: expense.groupId,
+          userId: expense.paidBy,
+          userName: userName,
+          type: ActivityType.expenseDeleted,
+          description: '$userName deleted expense: ${expense.description}',
+          metadata: {
+            'expenseId': expenseId,
+            'deletedAmount': expense.amount,
+            'deletedDescription': expense.description,
+            'deletedCategory': expense.category.displayName,
+            'originalExpense': expense.toMap(),
+          },
+          timestamp: DateTime.now(),
+        ),
+        currentUserId: currentUserId,
+      );
+
+      print('✅ Expense deleted and notification sent');
     } catch (e) {
-      print('Error deleting expense: $e');
+      print('❌ Error deleting expense: $e');
       throw e;
     }
   }

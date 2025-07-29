@@ -46,6 +46,9 @@
       <root url="file://$PROJECT_DIR$/../AppData/Local/Pub/Cache/hosted/pub.dev/image_picker_for_web-3.0.6" />
       <root url="file://$PROJECT_DIR$/../AppData/Local/Pub/Cache/hosted/pub.dev/local_auth_android-1.0.50" />
       <root url="file://$PROJECT_DIR$/../AppData/Local/Pub/Cache/hosted/pub.dev/cloud_firestore_web-3.12.5" />
+      <root url="file://$PROJECT_DIR$/../AppData/Local/Pub/Cache/hosted/pub.dev/awesome_notifications-0.9.3+1" />
+      <root url="file://$PROJECT_DIR$/../AppData/Local/Pub/Cache/hosted/pub.dev/firebase_messaging-14.7.10" />
+      <root url="file://$PROJECT_DIR$/../AppData/Local/Pub/Cache/hosted/pub.dev/firebase_messaging_web-3.5.18" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />
