@@ -16,7 +16,7 @@
 
     <application
         android:label="spendwise"
-        android:name=".MainApplication"
+        android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
 
         <activity
