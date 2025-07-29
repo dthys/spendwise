@@ -15,12 +15,19 @@ class HomeScreen extends StatefulWidget {
   _HomeScreenState createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin {
   final DatabaseService _databaseService = DatabaseService();
   Timer? _refreshTimer;
   late StreamController<double> _balanceController;
   late String _currentUserId;
   String? _userName;
+
+  // Cache to prevent unnecessary rebuilds
+  double? _cachedBalance;
+  DateTime? _lastBalanceUpdate;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -78,7 +85,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _refreshBalance() async {
+  Future<void> _refreshBalance({bool forceRefresh = false}) async {
+    // Use cache if recent and not forcing refresh (reduce cache time to 10 seconds)
+    if (!forceRefresh &&
+        _cachedBalance != null &&
+        _lastBalanceUpdate != null &&
+        DateTime.now().difference(_lastBalanceUpdate!).inSeconds < 10) {
+      _balanceController.add(_cachedBalance!);
+      return;
+    }
+
     try {
       List<GroupModel> groups = await _databaseService.streamUserGroups(_currentUserId).first;
       double totalBalance = 0.0;
@@ -100,6 +116,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
       print('🏠 Total balance across all groups: €${totalBalance.toStringAsFixed(2)}');
 
+      // Update cache
+      _cachedBalance = totalBalance;
+      _lastBalanceUpdate = DateTime.now();
+
       if (!_balanceController.isClosed) {
         _balanceController.add(totalBalance);
       }
@@ -111,13 +131,33 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _navigateAndRefresh(Widget screen) async {
-    final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => screen));
-    _refreshBalance();
-    _loadUserName();
+  // Smooth navigation with smart refresh
+  Future<void> _navigateWithTransition(Widget screen) async {
+    final result = await Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => screen,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: animation.drive(
+              Tween(begin: Offset(1.0, 0.0), end: Offset.zero).chain(
+                CurveTween(curve: Curves.easeInOut),
+              ),
+            ),
+            child: child,
+          );
+        },
+        transitionDuration: Duration(milliseconds: 250),
+      ),
+    );
 
-    if (mounted) {
-      setState(() {});
+    // Always refresh balance when returning (but use cache if recent)
+    // Force refresh only if screen explicitly requests it
+    bool forceRefresh = (result == 'refresh' || result == true);
+    _refreshBalance(forceRefresh: forceRefresh);
+
+    if (forceRefresh) {
+      _loadUserName();
     }
   }
 
@@ -185,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             : null,
                         onTap: () async {
                           Navigator.pop(context);
-                          _navigateAndRefresh(GroupDetailScreen(groupId: group.id));
+                          _navigateWithTransition(GroupDetailScreen(groupId: group.id));
                         },
                       );
                     },
@@ -207,6 +247,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+
     final authService = Provider.of<AuthService>(context);
     final user = authService.currentUser;
 
@@ -292,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: Icon(Icons.settings),
             onPressed: () {
-              _navigateAndRefresh(SettingsScreen());
+              _navigateWithTransition(SettingsScreen());
             },
             tooltip: 'Settings',
           ),
@@ -336,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 StreamBuilder<double>(
                   stream: _balanceController.stream,
-                  initialData: 0.0,
+                  initialData: _cachedBalance ?? 0.0,
                   builder: (context, balanceSnapshot) {
                     return Container(
                       padding: EdgeInsets.all(16),
@@ -428,7 +470,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       TextButton.icon(
                         onPressed: () {
-                          _navigateAndRefresh(GroupsScreen());
+                          _navigateWithTransition(GroupsScreen());
                         },
                         icon: Icon(Icons.add),
                         label: Text('New Group'),
@@ -475,7 +517,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 SizedBox(height: 24),
                                 ElevatedButton.icon(
                                   onPressed: () {
-                                    _navigateAndRefresh(GroupsScreen());
+                                    _navigateWithTransition(GroupsScreen());
                                   },
                                   icon: Icon(Icons.add),
                                   label: Text('Create Group'),
@@ -498,32 +540,35 @@ class _HomeScreenState extends State<HomeScreen> {
                           itemCount: groups.length,
                           itemBuilder: (context, index) {
                             GroupModel group = groups[index];
-                            return Card(
-                              margin: EdgeInsets.only(bottom: 12),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: Theme.of(context).primaryColor,
-                                  child: Text(
-                                    group.name.substring(0, 1).toUpperCase(),
-                                    style: TextStyle(
-                                      color: Theme.of(context).primaryColor.computeLuminance() > 0.5
-                                          ? Colors.black
-                                          : Colors.white,
-                                      fontWeight: FontWeight.bold,
+                            return Hero(
+                              tag: 'group_${group.id}',
+                              child: Card(
+                                margin: EdgeInsets.only(bottom: 12),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: Theme.of(context).primaryColor,
+                                    child: Text(
+                                      group.name.substring(0, 1).toUpperCase(),
+                                      style: TextStyle(
+                                        color: Theme.of(context).primaryColor.computeLuminance() > 0.5
+                                            ? Colors.black
+                                            : Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
+                                  title: Text(
+                                    group.name,
+                                    style: TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  subtitle: Text(
+                                    '${group.memberIds.length} members • ${group.currency}',
+                                  ),
+                                  trailing: Icon(Icons.arrow_forward_ios, size: 16),
+                                  onTap: () {
+                                    _navigateWithTransition(GroupDetailScreen(groupId: group.id));
+                                  },
                                 ),
-                                title: Text(
-                                  group.name,
-                                  style: TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                                subtitle: Text(
-                                  '${group.memberIds.length} members • ${group.currency}',
-                                ),
-                                trailing: Icon(Icons.arrow_forward_ios, size: 16),
-                                onTap: () {
-                                  _navigateAndRefresh(GroupDetailScreen(groupId: group.id));
-                                },
                               ),
                             );
                           },

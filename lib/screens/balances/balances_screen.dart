@@ -21,10 +21,13 @@ class BalancesScreen extends StatefulWidget {
   _BalancesScreenState createState() => _BalancesScreenState();
 }
 
-class _BalancesScreenState extends State<BalancesScreen> {
+class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAliveClientMixin {
   final DatabaseService _databaseService = DatabaseService();
 
-  // NEW: Enhanced balance calculation that respects settlements
+  @override
+  bool get wantKeepAlive => true;
+
+  // Enhanced balance calculation that respects settlements
   Map<String, double> _calculateCurrentBalances(
       List<ExpenseModel> expenses,
       List<SettlementModel> settlements,
@@ -187,7 +190,7 @@ class _BalancesScreenState extends State<BalancesScreen> {
     return neededSettlements;
   }
 
-  // NEW: Calculate which expenses should be marked as settled
+  // Calculate which expenses should be marked as settled
   List<String> _getExpensesToSettle(
       String fromUserId,
       String toUserId,
@@ -249,182 +252,108 @@ class _BalancesScreenState extends State<BalancesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text('Balances'),
-        backgroundColor: theme.appBarTheme.backgroundColor,
-        foregroundColor: theme.appBarTheme.foregroundColor,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.history),
-            onPressed: () => _showSettlementHistory(),
-            tooltip: 'Settlement History',
+    return WillPopScope(
+      onWillPop: () async {
+        // Always return 'refresh' when popping to trigger balance update in parent
+        Navigator.pop(context, 'refresh');
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: Text('Balances'),
+          backgroundColor: theme.appBarTheme.backgroundColor,
+          foregroundColor: theme.appBarTheme.foregroundColor,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context, 'refresh'),
           ),
-        ],
-      ),
-      body: StreamBuilder<List<ExpenseModel>>(
-        stream: _databaseService.streamGroupExpenses(widget.groupId),
-        builder: (context, expenseSnapshot) {
-          return StreamBuilder<List<SettlementModel>>(
-            stream: _databaseService.streamGroupSettlements(widget.groupId),
-            builder: (context, settlementSnapshot) {
-              if (expenseSnapshot.connectionState == ConnectionState.waiting) {
-                return Center(child: CircularProgressIndicator());
-              }
+          actions: [
+            IconButton(
+              icon: Icon(Icons.history),
+              onPressed: () => _showSettlementHistory(),
+              tooltip: 'Settlement History',
+            ),
+          ],
+        ),
+        body: StreamBuilder<List<ExpenseModel>>(
+          stream: _databaseService.streamGroupExpenses(widget.groupId),
+          builder: (context, expenseSnapshot) {
+            return StreamBuilder<List<SettlementModel>>(
+              stream: _databaseService.streamGroupSettlements(widget.groupId),
+              builder: (context, settlementSnapshot) {
+                if (expenseSnapshot.connectionState == ConnectionState.waiting) {
+                  return Center(child: CircularProgressIndicator());
+                }
 
-              // Calculate current balances using the NEW logic
-              Map<String, double> currentBalances = {};
-              List<Settlement> unsettledAmounts = [];
+                // Calculate current balances using the NEW logic
+                Map<String, double> currentBalances = {};
+                List<Settlement> unsettledAmounts = [];
 
-              if (expenseSnapshot.hasData) {
-                List<ExpenseModel> currentExpenses = expenseSnapshot.data!;
-                List<SettlementModel> settlements = settlementSnapshot.data ?? [];
+                if (expenseSnapshot.hasData) {
+                  List<ExpenseModel> currentExpenses = expenseSnapshot.data!;
+                  List<SettlementModel> settlements = settlementSnapshot.data ?? [];
 
-                // Use the new balance calculation method
-                currentBalances = _calculateCurrentBalances(currentExpenses, settlements);
-                unsettledAmounts = _calculateUnsettledBalances(currentBalances);
-              }
+                  // Use the new balance calculation method
+                  currentBalances = _calculateCurrentBalances(currentExpenses, settlements);
+                  unsettledAmounts = _calculateUnsettledBalances(currentBalances);
+                }
 
-              return RefreshIndicator(
-                onRefresh: () async {
-                  setState(() {});
-                },
-                child: SingleChildScrollView(
-                  physics: AlwaysScrollableScrollPhysics(),
-                  child: Column(
-                    children: [
-                      // Header
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: theme.primaryColor,
-                          borderRadius: BorderRadius.only(
-                            bottomLeft: Radius.circular(20),
-                            bottomRight: Radius.circular(20),
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    setState(() {});
+                  },
+                  child: SingleChildScrollView(
+                    physics: AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      children: [
+                        // Header
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: theme.primaryColor,
+                            borderRadius: BorderRadius.only(
+                              bottomLeft: Radius.circular(20),
+                              bottomRight: Radius.circular(20),
+                            ),
                           ),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.account_balance,
-                              color: colorScheme.onPrimary,
-                              size: 48,
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'Group Balances',
-                              style: TextStyle(
-                                color: colorScheme.onPrimary,
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              'Considering settlements',
-                              style: TextStyle(
-                                color: colorScheme.onPrimary.withOpacity(0.8),
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      SizedBox(height: 24),
-
-                      // Individual Balances
-                      Container(
-                        margin: EdgeInsets.symmetric(horizontal: 16),
-                        child: Card(
-                          color: theme.cardColor,
                           child: Column(
                             children: [
-                              Padding(
-                                padding: EdgeInsets.all(16),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.receipt_long, color: theme.primaryColor),
-                                    SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'Current Balances',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: colorScheme.onSurface,
-                                        ),
-                                      ),
-                                    ),
-                                    if (settlementSnapshot.hasData && settlementSnapshot.data!.isNotEmpty)
-                                      Chip(
-                                        label: Text('${settlementSnapshot.data!.length} settlements'),
-                                        backgroundColor: Colors.green.shade100,
-                                        labelStyle: TextStyle(
-                                          color: Colors.green.shade700,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                  ],
+                              Icon(
+                                Icons.account_balance,
+                                color: colorScheme.onPrimary,
+                                size: 48,
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'Group Balances',
+                                style: TextStyle(
+                                  color: colorScheme.onPrimary,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              ...widget.members.map((member) {
-                                double balance = currentBalances[member.id] ?? 0.0;
-                                return AnimatedContainer(
-                                  duration: Duration(milliseconds: 300),
-                                  child: ListTile(
-                                    leading: CircleAvatar(
-                                      backgroundColor: balance.abs() < 0.01
-                                          ? Colors.grey.shade500
-                                          : balance > 0
-                                          ? Colors.green.shade500
-                                          : Colors.red.shade500,
-                                      child: Text(
-                                        member.name.substring(0, 1).toUpperCase(),
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                    title: Text(
-                                      member.name,
-                                      style: TextStyle(color: colorScheme.onSurface),
-                                    ),
-                                    subtitle: Text(
-                                      balance.abs() < 0.01
-                                          ? 'All settled up'
-                                          : balance > 0
-                                          ? 'Is owed (after settlements)'
-                                          : 'Owes (after settlements)',
-                                      style: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
-                                    ),
-                                    trailing: Text(
-                                      balance.abs() < 0.01 ? '€0.00' : _formatAmount(balance),
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: balance.abs() < 0.01
-                                            ? Colors.grey.shade600
-                                            : balance > 0
-                                            ? Colors.green.shade600
-                                            : Colors.red.shade600,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
+                              Text(
+                                'Considering settlements',
+                                style: TextStyle(
+                                  color: colorScheme.onPrimary.withOpacity(0.8),
+                                  fontSize: 16,
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                      ),
 
-                      SizedBox(height: 16),
+                        SizedBox(height: 24),
 
-                      // Unsettled amounts (what still needs to be settled)
-                      if (unsettledAmounts.isNotEmpty) ...[
+                        // Individual Balances
                         Container(
                           margin: EdgeInsets.symmetric(horizontal: 16),
                           child: Card(
@@ -435,11 +364,11 @@ class _BalancesScreenState extends State<BalancesScreen> {
                                   padding: EdgeInsets.all(16),
                                   child: Row(
                                     children: [
-                                      Icon(Icons.swap_horiz, color: theme.primaryColor),
+                                      Icon(Icons.receipt_long, color: theme.primaryColor),
                                       SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
-                                          'Still Need to Settle',
+                                          'Current Balances',
                                           style: TextStyle(
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
@@ -447,76 +376,58 @@ class _BalancesScreenState extends State<BalancesScreen> {
                                           ),
                                         ),
                                       ),
+                                      if (settlementSnapshot.hasData && settlementSnapshot.data!.isNotEmpty)
+                                        Chip(
+                                          label: Text('${settlementSnapshot.data!.length} settlements'),
+                                          backgroundColor: Colors.green.shade100,
+                                          labelStyle: TextStyle(
+                                            color: Colors.green.shade700,
+                                            fontSize: 12,
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
-                                ...unsettledAmounts.map((settlement) {
-                                  UserModel fromUser = _getUserById(settlement.from);
-                                  UserModel toUser = _getUserById(settlement.to);
-
-                                  return Container(
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        bottom: BorderSide(
-                                          color: colorScheme.onSurface.withOpacity(0.1),
-                                          width: 1,
-                                        ),
-                                      ),
-                                    ),
+                                ...widget.members.map((member) {
+                                  double balance = currentBalances[member.id] ?? 0.0;
+                                  return AnimatedContainer(
+                                    duration: Duration(milliseconds: 300),
                                     child: ListTile(
-                                      leading: Container(
-                                        padding: EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange.shade500,
-                                          borderRadius: BorderRadius.circular(20),
+                                      leading: CircleAvatar(
+                                        backgroundColor: balance.abs() < 0.01
+                                            ? Colors.grey.shade500
+                                            : balance > 0
+                                            ? Colors.green.shade500
+                                            : Colors.red.shade500,
+                                        child: Text(
+                                          member.name.substring(0, 1).toUpperCase(),
+                                          style: TextStyle(color: Colors.white),
                                         ),
-                                        child: Icon(Icons.arrow_forward, color: Colors.white),
                                       ),
-                                      title: RichText(
-                                        text: TextSpan(
-                                          style: TextStyle(color: colorScheme.onSurface),
-                                          children: [
-                                            TextSpan(
-                                              text: fromUser.name,
-                                              style: TextStyle(fontWeight: FontWeight.bold),
-                                            ),
-                                            TextSpan(text: ' pays '),
-                                            TextSpan(
-                                              text: toUser.name,
-                                              style: TextStyle(fontWeight: FontWeight.bold),
-                                            ),
-                                          ],
-                                        ),
+                                      title: Text(
+                                        member.name,
+                                        style: TextStyle(color: colorScheme.onSurface),
                                       ),
                                       subtitle: Text(
-                                        'Tap to settle this amount',
+                                        balance.abs() < 0.01
+                                            ? 'All settled up'
+                                            : balance > 0
+                                            ? 'Is owed (after settlements)'
+                                            : 'Owes (after settlements)',
+                                        style: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
+                                      ),
+                                      trailing: Text(
+                                        balance.abs() < 0.01 ? '€0.00' : _formatAmount(balance),
                                         style: TextStyle(
-                                          color: colorScheme.onSurface.withOpacity(0.6),
-                                          fontSize: 12,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: balance.abs() < 0.01
+                                              ? Colors.grey.shade600
+                                              : balance > 0
+                                              ? Colors.green.shade600
+                                              : Colors.red.shade600,
                                         ),
                                       ),
-                                      trailing: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        children: [
-                                          Text(
-                                            _formatAmount(settlement.amount),
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.green.shade600,
-                                            ),
-                                          ),
-                                          Icon(
-                                            Icons.touch_app,
-                                            size: 16,
-                                            color: colorScheme.onSurface.withOpacity(0.4),
-                                          ),
-                                        ],
-                                      ),
-                                      onTap: () {
-                                        _showSettleDialog(settlement, fromUser, toUser);
-                                      },
                                     ),
                                   );
                                 }).toList(),
@@ -524,52 +435,157 @@ class _BalancesScreenState extends State<BalancesScreen> {
                             ),
                           ),
                         ),
-                      ] else ...[
-                        Container(
-                          margin: EdgeInsets.symmetric(horizontal: 16),
-                          child: Card(
-                            color: theme.cardColor,
-                            child: Padding(
-                              padding: EdgeInsets.all(32),
+
+                        SizedBox(height: 16),
+
+                        // Unsettled amounts (what still needs to be settled)
+                        if (unsettledAmounts.isNotEmpty) ...[
+                          Container(
+                            margin: EdgeInsets.symmetric(horizontal: 16),
+                            child: Card(
+                              color: theme.cardColor,
                               child: Column(
                                 children: [
-                                  Icon(
-                                    Icons.check_circle,
-                                    color: Colors.green.shade500,
-                                    size: 64,
-                                  ),
-                                  SizedBox(height: 16),
-                                  Text(
-                                    'All Settled!',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.green.shade600,
+                                  Padding(
+                                    padding: EdgeInsets.all(16),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.swap_horiz, color: theme.primaryColor),
+                                        SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Still Need to Settle',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: colorScheme.onSurface,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'All current expenses are settled',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: colorScheme.onSurface.withOpacity(0.6),
-                                    ),
-                                  ),
+                                  ...unsettledAmounts.map((settlement) {
+                                    UserModel fromUser = _getUserById(settlement.from);
+                                    UserModel toUser = _getUserById(settlement.to);
+
+                                    return Container(
+                                      decoration: BoxDecoration(
+                                        border: Border(
+                                          bottom: BorderSide(
+                                            color: colorScheme.onSurface.withOpacity(0.1),
+                                            width: 1,
+                                          ),
+                                        ),
+                                      ),
+                                      child: ListTile(
+                                        leading: Container(
+                                          padding: EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange.shade500,
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Icon(Icons.arrow_forward, color: Colors.white),
+                                        ),
+                                        title: RichText(
+                                          text: TextSpan(
+                                            style: TextStyle(color: colorScheme.onSurface),
+                                            children: [
+                                              TextSpan(
+                                                text: fromUser.name,
+                                                style: TextStyle(fontWeight: FontWeight.bold),
+                                              ),
+                                              TextSpan(text: ' pays '),
+                                              TextSpan(
+                                                text: toUser.name,
+                                                style: TextStyle(fontWeight: FontWeight.bold),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          'Tap to settle this amount',
+                                          style: TextStyle(
+                                            color: colorScheme.onSurface.withOpacity(0.6),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        trailing: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              _formatAmount(settlement.amount),
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.green.shade600,
+                                              ),
+                                            ),
+                                            Icon(
+                                              Icons.touch_app,
+                                              size: 16,
+                                              color: colorScheme.onSurface.withOpacity(0.4),
+                                            ),
+                                          ],
+                                        ),
+                                        onTap: () {
+                                          _showSettleDialog(settlement, fromUser, toUser);
+                                        },
+                                      ),
+                                    );
+                                  }).toList(),
                                 ],
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                        ] else ...[
+                          Container(
+                            margin: EdgeInsets.symmetric(horizontal: 16),
+                            child: Card(
+                              color: theme.cardColor,
+                              child: Padding(
+                                padding: EdgeInsets.all(32),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
+                                      color: Colors.green.shade500,
+                                      size: 64,
+                                    ),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      'All Settled!',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.green.shade600,
+                                      ),
+                                    ),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'All current expenses are settled',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: colorScheme.onSurface.withOpacity(0.6),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
 
-                      SizedBox(height: 100),
-                    ],
+                        SizedBox(height: 100),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
-          );
-        },
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -893,7 +909,7 @@ class _BalancesScreenState extends State<BalancesScreen> {
     });
   }
 
-  // UPDATED: Settlement confirmation with expense tracking
+  // Settlement confirmation with expense tracking
   Future<void> _confirmSettlement(
       Settlement settlement,
       UserModel fromUser,
@@ -931,7 +947,7 @@ class _BalancesScreenState extends State<BalancesScreen> {
         settledAt: DateTime.now(),
         method: method,
         notes: notes,
-        settledExpenseIds: expensesToSettle, // NEW: Track which expenses are settled
+        settledExpenseIds: expensesToSettle, // Track which expenses are settled
       );
 
       await _databaseService.createSettlement(settlementModel);
@@ -943,6 +959,9 @@ class _BalancesScreenState extends State<BalancesScreen> {
           backgroundColor: Colors.green.shade600,
         ),
       );
+
+      // Important: Pop with 'refresh' to trigger balance update in GroupDetailScreen
+      Navigator.pop(context, 'refresh');
 
     } catch (e) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();

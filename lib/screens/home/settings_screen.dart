@@ -10,7 +10,7 @@ import '../../services/database_service.dart';
 import '../../services/biometric_service.dart';
 import '../../models/user_model.dart';
 import '../../dialogs/auth_dialogs.dart';
-import 'notification_settings_screen.dart'; // Add this import
+import 'notification_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   @override

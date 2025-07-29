@@ -22,12 +22,20 @@ class GroupDetailScreen extends StatefulWidget {
   _GroupDetailScreenState createState() => _GroupDetailScreenState();
 }
 
-class _GroupDetailScreenState extends State<GroupDetailScreen> {
+class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKeepAliveClientMixin {
   final DatabaseService _databaseService = DatabaseService();
   GroupModel? _group;
   List<UserModel> _members = [];
   bool _isLoading = true;
-  bool _showSettledExpenses = false; // NEW: Toggle for settled expenses
+  bool _showSettledExpenses = false;
+
+  // Cache for group data to prevent unnecessary reloads
+  DateTime? _lastDataUpdate;
+  Map<String, double>? _cachedBalances;
+  DateTime? _lastBalanceUpdate;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -35,9 +43,15 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     _loadGroupData();
   }
 
+  Future<void> _loadGroupData({bool forceRefresh = false}) async {
+    // Use cache if recent and not forcing refresh
+    if (!forceRefresh &&
+        _group != null &&
+        _lastDataUpdate != null &&
+        DateTime.now().difference(_lastDataUpdate!).inSeconds < 15) {
+      return;
+    }
 
-
-  Future<void> _loadGroupData() async {
     try {
       _group = await _databaseService.getGroup(widget.groupId);
       if (_group != null) {
@@ -49,6 +63,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             _members.add(member);
           }
         }
+        _lastDataUpdate = DateTime.now();
       }
       setState(() => _isLoading = false);
     } catch (e) {
@@ -63,32 +78,27 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
   // Create a stream for balance updates that reacts to expense changes
   Stream<Map<String, double>> _getBalanceStream() {
-    return _databaseService.streamGroupExpenses(widget.groupId).asyncMap((
-        _) async {
-      // Use the updated method that considers settlements
-      return await _databaseService.calculateGroupBalancesWithSettlements(
-          widget.groupId);
+    return _databaseService.streamGroupExpenses(widget.groupId).asyncMap((_) async {
+      // Cache balances for better performance
+      _cachedBalances = await _databaseService.calculateGroupBalancesWithSettlements(widget.groupId);
+      return _cachedBalances!;
     });
   }
 
-  // NEW: Check if an expense is fully settled
-  bool _isExpenseFullySettled(ExpenseModel expense,
-      List<SettlementModel> settlements) {
-    // Get settlements that include this expense
+  // Check if an expense is fully settled
+  bool _isExpenseFullySettled(ExpenseModel expense, List<SettlementModel> settlements) {
     List<SettlementModel> expenseSettlements = settlements
         .where((s) => s.settledExpenseIds.contains(expense.id))
         .toList();
 
     if (expenseSettlements.isEmpty) {
-      return false; // No settlements for this expense
+      return false;
     }
 
-    // Get all user pairs that have settled this expense
     Set<String> settledUserPairs = expenseSettlements
         .map((s) => '${s.fromUserId}-${s.toUserId}')
         .toSet();
 
-    // Add reverse pairs (settlements work both ways)
     List<String> reversePairs = expenseSettlements
         .map((s) => '${s.toUserId}-${s.fromUserId}')
         .toList();
@@ -96,64 +106,67 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
     String payer = expense.paidBy;
 
-    // Check if all debts for this expense are settled
     for (String participant in expense.splitBetween) {
       if (participant == payer) {
-        continue; // Payer doesn't owe themselves
+        continue;
       }
 
-      // If any participant hasn't settled with the payer, expense is not fully settled
       if (!settledUserPairs.contains('$participant-$payer')) {
         return false;
       }
     }
 
-    return true; // All participants have settled with the payer
+    return true;
   }
 
-  // NEW: Filter expenses based on settled status
-  List<ExpenseModel> _filterExpenses(List<ExpenseModel> expenses,
-      List<SettlementModel> settlements) {
+  // Filter expenses based on settled status
+  List<ExpenseModel> _filterExpenses(List<ExpenseModel> expenses, List<SettlementModel> settlements) {
     if (_showSettledExpenses) {
-      return expenses; // Show all expenses
+      return expenses;
     } else {
-      // Show only unsettled expenses
-      return expenses.where((expense) =>
-      !_isExpenseFullySettled(expense, settlements)).toList();
+      return expenses.where((expense) => !_isExpenseFullySettled(expense, settlements)).toList();
     }
   }
 
-  // Add refresh functionality
+  // Add refresh functionality with smart caching
   Future<void> _refreshData() async {
-    await _loadGroupData();
-    await Future.delayed(
-        Duration(milliseconds: 500)); // Small delay for better UX
+    await _loadGroupData(forceRefresh: true);
+    await Future.delayed(Duration(milliseconds: 300)); // Reduced delay for better responsiveness
   }
 
   // Create smooth page transitions
-  Route _createRoute(Widget page) {
-    return PageRouteBuilder(
-      pageBuilder: (context, animation, secondaryAnimation) => page,
-      transitionDuration: Duration(milliseconds: 300),
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        const begin = Offset(1.0, 0.0);
-        const end = Offset.zero;
-        const curve = Curves.easeInOut;
-
-        var tween = Tween(begin: begin, end: end).chain(
-          CurveTween(curve: curve),
-        );
-
-        return SlideTransition(
-          position: animation.drive(tween),
-          child: child,
-        );
-      },
+  Future<void> _navigateWithTransition(Widget page) async {
+    final result = await Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => page,
+        transitionDuration: Duration(milliseconds: 250),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: animation.drive(
+              Tween(begin: Offset(1.0, 0.0), end: Offset.zero).chain(
+                CurveTween(curve: Curves.easeInOut),
+              ),
+            ),
+            child: child,
+          );
+        },
+      ),
     );
+
+    // Smart refresh logic
+    if (result == 'refresh' || result == true) {
+      await _refreshData();
+    } else {
+      // Light refresh for balance updates
+      await _loadGroupData();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -196,7 +209,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               ),
               SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(context, 'refresh'),
                 child: Text('Go Back'),
               ),
             ],
@@ -274,14 +287,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     }
                   }
 
-                  final result = await Navigator.push(
-                    context,
-                    _createRoute(ActivityLogScreen(groupId: widget.groupId)),
-                  );
-
-                  if (result == true && mounted) {
-                    setState(() {});
-                  }
+                  await _navigateWithTransition(ActivityLogScreen(groupId: widget.groupId));
                 },
               );
             },
@@ -324,20 +330,19 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     SizedBox(height: 16),
                   ],
 
-                  // Group Balance - Changed to StreamBuilder for real-time updates
+                  // Group Balance - StreamBuilder with cached initial data
                   StreamBuilder<Map<String, double>>(
                     stream: _getBalanceStream(),
+                    initialData: _cachedBalances,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting &&
                           snapshot.data == null) {
                         return _buildBalanceSkeleton();
                       }
 
-                      final authService = Provider.of<AuthService>(
-                          context, listen: false);
+                      final authService = Provider.of<AuthService>(context, listen: false);
                       final currentUserId = authService.currentUser?.uid;
-                      final userBalance = snapshot.hasData &&
-                          currentUserId != null
+                      final userBalance = snapshot.hasData && currentUserId != null
                           ? snapshot.data![currentUserId] ?? 0.0
                           : 0.0;
 
@@ -401,14 +406,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   Container(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          _createRoute(BalancesScreen(
-                            groupId: widget.groupId,
-                            members: _members,
-                          )),
-                        );
+                      onPressed: () async {
+                        await _navigateWithTransition(BalancesScreen(
+                          groupId: widget.groupId,
+                          members: _members,
+                        ));
+                        // Always refresh after balances screen since settlements might have happened
+                        await _loadGroupData(forceRefresh: true);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colorScheme.onPrimary.withOpacity(0.2),
@@ -443,13 +447,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   Spacer(),
                   TextButton.icon(
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        _createRoute(AddExpenseScreen(
-                          group: _group!,
-                          members: _members,
-                        )),
-                      );
+                      _navigateWithTransition(AddExpenseScreen(
+                        group: _group!,
+                        members: _members,
+                      ));
                     },
                     icon: Icon(Icons.add),
                     label: Text('Add Expense'),
@@ -458,14 +459,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               ),
             ),
 
-            // NEW: Show/Hide Settled Expenses Toggle
+            // Show/Hide Settled Expenses Toggle
             StreamBuilder<List<SettlementModel>>(
               stream: _databaseService.streamGroupSettlements(widget.groupId),
               builder: (context, settlementSnapshot) {
-                List<SettlementModel> settlements = settlementSnapshot.data ??
-                    [];
+                List<SettlementModel> settlements = settlementSnapshot.data ?? [];
 
-                // Count settled expenses
                 int settledExpensesCount = 0;
                 if (settlementSnapshot.hasData) {
                   Set<String> settledExpenseIds = settlements
@@ -474,7 +473,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   settledExpensesCount = settledExpenseIds.length;
                 }
 
-                // Only show toggle if there are settled expenses
                 if (settledExpensesCount == 0) {
                   return SizedBox.shrink();
                 }
@@ -573,13 +571,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                                   SizedBox(height: 24),
                                   ElevatedButton.icon(
                                     onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        _createRoute(AddExpenseScreen(
-                                          group: _group!,
-                                          members: _members,
-                                        )),
-                                      );
+                                      _navigateWithTransition(AddExpenseScreen(
+                                        group: _group!,
+                                        members: _members,
+                                      ));
                                     },
                                     icon: Icon(Icons.add),
                                     label: Text('Add Expense'),
@@ -669,13 +664,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                           return AnimatedContainer(
                             duration: Duration(milliseconds: 200),
                             curve: Curves.easeInOut,
-                            child: Card(
-                              margin: EdgeInsets.only(bottom: 8),
-                              color: theme.cardColor,
-                              child: ListTile(
-                                leading: Hero(
-                                  tag: 'expense_${expense.id}',
-                                  child: Stack(
+                            child: Hero(
+                              tag: 'expense_${expense.id}',
+                              child: Card(
+                                margin: EdgeInsets.only(bottom: 8),
+                                color: theme.cardColor,
+                                child: ListTile(
+                                  leading: Stack(
                                     children: [
                                       CircleAvatar(
                                         backgroundColor: isSettled
@@ -710,86 +705,83 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                                         ),
                                     ],
                                   ),
-                                ),
-                                title: Text(
-                                  expense.description,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: isSettled
-                                        ? colorScheme.onSurface.withOpacity(0.6)
-                                        : colorScheme.onSurface,
-                                    decoration: isSettled
-                                        ? TextDecoration.lineThrough
-                                        : TextDecoration.none,
+                                  title: Text(
+                                    expense.description,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: isSettled
+                                          ? colorScheme.onSurface.withOpacity(0.6)
+                                          : colorScheme.onSurface,
+                                      decoration: isSettled
+                                          ? TextDecoration.lineThrough
+                                          : TextDecoration.none,
+                                    ),
                                   ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          'Paid by ${paidByUser.name}',
-                                          style: TextStyle(
-                                            color: isSettled
-                                                ? colorScheme.onSurface.withOpacity(0.4)
-                                                : colorScheme.onSurface.withOpacity(0.8),
-                                          ),
-                                        ),
-                                        if (isSettled) ...[
-                                          SizedBox(width: 8),
-                                          Container(
-                                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: Colors.green.shade100,
-                                              borderRadius: BorderRadius.circular(8),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            'Paid by ${paidByUser.name}',
+                                            style: TextStyle(
+                                              color: isSettled
+                                                  ? colorScheme.onSurface.withOpacity(0.4)
+                                                  : colorScheme.onSurface.withOpacity(0.8),
                                             ),
-                                            child: Text(
-                                              'SETTLED',
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.green.shade700,
+                                          ),
+                                          if (isSettled) ...[
+                                            SizedBox(width: 8),
+                                            Container(
+                                              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.green.shade100,
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                'SETTLED',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.green.shade700,
+                                                ),
                                               ),
                                             ),
-                                          ),
+                                          ],
                                         ],
-                                      ],
-                                    ),
-                                    Text(
-                                      '${expense.date.day}/${expense.date.month}/${expense.date.year}',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: isSettled
-                                            ? colorScheme.onSurface.withOpacity(0.4)
-                                            : colorScheme.onSurface.withOpacity(0.6),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                trailing: Text(
-                                  _formatCurrency(expense.amount),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: isSettled
-                                        ? colorScheme.onSurface.withOpacity(0.5)
-                                        : colorScheme.onSurface,
-                                    decoration: isSettled
-                                        ? TextDecoration.lineThrough
-                                        : TextDecoration.none,
+                                      Text(
+                                        '${expense.date.day}/${expense.date.month}/${expense.date.year}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: isSettled
+                                              ? colorScheme.onSurface.withOpacity(0.4)
+                                              : colorScheme.onSurface.withOpacity(0.6),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    _createRoute(ExpenseDetailScreen(
+                                  trailing: Text(
+                                    _formatCurrency(expense.amount),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: isSettled
+                                          ? colorScheme.onSurface.withOpacity(0.5)
+                                          : colorScheme.onSurface,
+                                      decoration: isSettled
+                                          ? TextDecoration.lineThrough
+                                          : TextDecoration.none,
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    _navigateWithTransition(ExpenseDetailScreen(
                                       expense: expense,
                                       group: _group!,
                                       members: _members,
-                                    )),
-                                  );
-                                },
+                                    ));
+                                  },
+                                ),
                               ),
                             ),
                           );
@@ -805,13 +797,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.push(
-            context,
-            _createRoute(AddExpenseScreen(
-              group: _group!,
-              members: _members,
-            )),
-          );
+          _navigateWithTransition(AddExpenseScreen(
+            group: _group!,
+            members: _members,
+          ));
         },
         backgroundColor: theme.primaryColor,
         child: Icon(
@@ -827,11 +816,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme
-            .of(context)
-            .colorScheme
-            .onPrimary
-            .withOpacity(0.1),
+        color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -855,30 +840,28 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-// Loading skeleton for expense list
+  // Loading skeleton for expense list
   Widget _buildExpenseListSkeleton() {
     return ListView.builder(
       padding: EdgeInsets.symmetric(horizontal: 16),
       itemCount: 6,
-      itemBuilder: (context, index) =>
-          Card(
-            margin: EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: ShimmerBox(width: 40, height: 40, borderRadius: 20),
-              title: ShimmerBox(
-                  width: double.infinity, height: 16, borderRadius: 4),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(height: 4),
-                  ShimmerBox(width: 120, height: 14, borderRadius: 4),
-                  SizedBox(height: 2),
-                  ShimmerBox(width: 80, height: 12, borderRadius: 4),
-                ],
-              ),
-              trailing: ShimmerBox(width: 60, height: 20, borderRadius: 4),
-            ),
+      itemBuilder: (context, index) => Card(
+        margin: EdgeInsets.only(bottom: 8),
+        child: ListTile(
+          leading: ShimmerBox(width: 40, height: 40, borderRadius: 20),
+          title: ShimmerBox(width: double.infinity, height: 16, borderRadius: 4),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(height: 4),
+              ShimmerBox(width: 120, height: 14, borderRadius: 4),
+              SizedBox(height: 2),
+              ShimmerBox(width: 80, height: 12, borderRadius: 4),
+            ],
           ),
+          trailing: ShimmerBox(width: 60, height: 20, borderRadius: 4),
+        ),
+      ),
     );
   }
 
@@ -915,8 +898,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 ),
                 subtitle: Text(
                   member.email,
-                  style: TextStyle(
-                      color: colorScheme.onSurface.withOpacity(0.7)),
+                  style: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
                 ),
               ),
             );
@@ -942,77 +924,66 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) =>
-          AnimatedContainer(
-            duration: Duration(milliseconds: 300),
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: Icon(Icons.history, color: theme.primaryColor),
-                  title: Text(
-                    'Activity Log',
-                    style: TextStyle(color: colorScheme.onSurface),
-                  ),
-                  subtitle: Text(
-                    'View all group activities',
-                    style: TextStyle(
-                        color: colorScheme.onSurface.withOpacity(0.7)),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      _createRoute(ActivityLogScreen(groupId: widget.groupId)),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: Icon(
-                      Icons.account_balance, color: Colors.green.shade600),
-                  title: Text(
-                    'Balances',
-                    style: TextStyle(color: colorScheme.onSurface),
-                  ),
-                  subtitle: Text(
-                    'View detailed balances',
-                    style: TextStyle(
-                        color: colorScheme.onSurface.withOpacity(0.7)),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      _createRoute(BalancesScreen(
-                        groupId: widget.groupId,
-                        members: _members,
-                      )),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.settings, color: theme.primaryColor),
-                  title: Text(
-                    'Group Settings',
-                    style: TextStyle(color: colorScheme.onSurface),
-                  ),
-                  subtitle: Text(
-                    'Manage members and group settings',
-                    style: TextStyle(
-                        color: colorScheme.onSurface.withOpacity(0.7)),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      _createRoute(GroupSettingsScreen(group: _group!)),
-                    );
-                  },
-                ),
-              ],
+      builder: (context) => AnimatedContainer(
+        duration: Duration(milliseconds: 300),
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.history, color: theme.primaryColor),
+              title: Text(
+                'Activity Log',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+              subtitle: Text(
+                'View all group activities',
+                style: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _navigateWithTransition(ActivityLogScreen(groupId: widget.groupId));
+              },
             ),
-          ),
+            ListTile(
+              leading: Icon(Icons.account_balance, color: Colors.green.shade600),
+              title: Text(
+                'Balances',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+              subtitle: Text(
+                'View detailed balances',
+                style: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _navigateWithTransition(BalancesScreen(
+                  groupId: widget.groupId,
+                  members: _members,
+                )).then((_) {
+                  // Always refresh after balances screen
+                  _loadGroupData(forceRefresh: true);
+                });
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.settings, color: theme.primaryColor),
+              title: Text(
+                'Group Settings',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+              subtitle: Text(
+                'Manage members and group settings',
+                style: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _navigateWithTransition(GroupSettingsScreen(group: _group!));
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
