@@ -32,13 +32,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final authService = Provider.of<AuthService>(context, listen: false);
       if (authService.currentUser != null) {
         UserModel? user = await _databaseService.getUser(authService.currentUser!.uid);
+
+        // If user doesn't exist in database or name is missing, create/update it
+        if (user == null) {
+          print('⚠️ User not found in database, creating user record');
+          // Create user record with Firebase Auth data
+          user = UserModel(
+            id: authService.currentUser!.uid,
+            name: authService.currentUser!.displayName ?? 'User',
+            email: authService.currentUser!.email ?? '',
+            photoUrl: authService.currentUser!.photoURL,
+            groupIds: [], // Initialize with empty list
+            createdAt: DateTime.now(),
+          );
+          await _databaseService.createUser(user);
+        } else if (user.name.isEmpty && authService.currentUser!.displayName != null) {
+          // Update user with name from Firebase Auth if it's missing
+          print('⚠️ User name missing in database, updating with Firebase Auth name');
+          user = user.copyWith(name: authService.currentUser!.displayName!);
+          await _databaseService.updateUser(user);
+        }
+
         setState(() {
           _currentUser = user;
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('Error loading user data: $e');
+      print('❌ Error loading user data: $e');
       setState(() {
         _isLoading = false;
       });

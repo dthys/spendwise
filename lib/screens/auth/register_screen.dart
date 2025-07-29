@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/database_service.dart';
+import '../../models/user_model.dart';
 
 class RegisterScreen extends StatefulWidget {
   @override
@@ -13,6 +15,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final DatabaseService _databaseService = DatabaseService();
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
 
@@ -39,16 +42,62 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       // Check if user is actually created
       if (authService.currentUser != null) {
-        // Success! Force navigation to home
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Welcome to Spendwise!'), backgroundColor: Colors.green),
+        try {
+          // Create user model with the name
+          UserModel newUser = UserModel(
+            id: authService.currentUser!.uid,
+            name: _nameController.text.trim(),
+            email: _emailController.text.trim(),
+            photoUrl: authService.currentUser!.photoURL,
+            groupIds: [], // Initialize with empty list
+            createdAt: DateTime.now(),
           );
 
-          // Force navigation back to main app (which will show HomeScreen)
-          Navigator.of(context).popUntil((route) => route.isFirst);
+          // Save user data to database
+          await _databaseService.createUser(newUser);
+
+          // Try to update Firebase Auth profile with display name (handle potential errors)
+          try {
+            await authService.currentUser!.updateDisplayName(_nameController.text.trim());
+            await authService.currentUser!.reload();
+            print('✅ Firebase Auth displayName updated successfully');
+          } catch (displayNameError) {
+            print('⚠️ Could not update Firebase Auth displayName: $displayNameError');
+            // Continue anyway since we have the name in our database
+          }
+
+          print('✅ User registered successfully with name: ${_nameController.text.trim()}');
+
+          // Success! Force navigation to home
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  content: Text('Welcome to Spendwise, ${_nameController.text.trim()}!'),
+                  backgroundColor: Colors.green
+              ),
+            );
+
+            // Force navigation back to main app (which will show HomeScreen)
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
+          return;
+        } catch (e) {
+          print('❌ Error saving user data: $e');
+
+          // Even if there's an error saving additional data, registration was successful
+          // Show success message but mention the profile data issue
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Account created successfully! You can update your profile in Settings.'),
+                backgroundColor: Colors.green,
+              ),
+            );
+
+            // Still navigate to home since the user was created
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
         }
-        return;
       }
 
       // Only show error if user is NOT created
@@ -69,6 +118,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
         SnackBar(content: Text(error), backgroundColor: Colors.red),
       );
     } else {
+      // For Google sign in, the name should already be available
+      if (authService.currentUser != null) {
+        try {
+          // Check if user already exists in database
+          UserModel? existingUser = await _databaseService.getUser(authService.currentUser!.uid);
+
+          if (existingUser == null) {
+            // Create new user record for Google sign in
+            UserModel newUser = UserModel(
+              id: authService.currentUser!.uid,
+              name: authService.currentUser!.displayName ?? 'User',
+              email: authService.currentUser!.email ?? '',
+              photoUrl: authService.currentUser!.photoURL,
+              groupIds: [], // Initialize with empty list
+              createdAt: DateTime.now(),
+            );
+
+            await _databaseService.createUser(newUser);
+            print('✅ Google user data saved to database');
+          }
+        } catch (e) {
+          print('❌ Error saving Google user data: $e');
+        }
+      }
+
       Navigator.pop(context);
     }
   }

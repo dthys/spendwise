@@ -5,6 +5,7 @@ import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../services/theme_service.dart';
 import '../../models/group_model.dart';
+import '../../models/user_model.dart';
 import '../groups/group_detail_screen.dart';
 import '../groups/groups_screen.dart';
 import '../home/settings_screen.dart';
@@ -19,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _refreshTimer;
   late StreamController<double> _balanceController;
   late String _currentUserId;
+  String? _userName;
 
   @override
   void initState() {
@@ -29,11 +31,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Refresh balance whenever we return to this screen
     final authService = Provider.of<AuthService>(context, listen: false);
     if (authService.currentUser != null) {
       _currentUserId = authService.currentUser!.uid;
       _refreshBalance();
+      _loadUserName();
     }
   }
 
@@ -44,7 +46,38 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // FIXED: Simple balance calculation that works
+  Future<void> _loadUserName() async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      if (authService.currentUser != null) {
+        UserModel? user = await _databaseService.getUser(authService.currentUser!.uid);
+
+        if (user != null && user.name.isNotEmpty) {
+          setState(() {
+            _userName = user.name;
+          });
+          print('✅ Username loaded from database: ${user.name}');
+        } else if (authService.currentUser!.displayName != null && authService.currentUser!.displayName!.isNotEmpty) {
+          setState(() {
+            _userName = authService.currentUser!.displayName;
+          });
+          print('✅ Username loaded from Firebase Auth: ${authService.currentUser!.displayName}');
+        } else {
+          String emailPrefix = authService.currentUser!.email?.split('@')[0] ?? 'User';
+          setState(() {
+            _userName = emailPrefix;
+          });
+          print('✅ Username set to email prefix: $emailPrefix');
+        }
+      }
+    } catch (e) {
+      print('❌ Error loading username: $e');
+      setState(() {
+        _userName = 'User';
+      });
+    }
+  }
+
   Future<void> _refreshBalance() async {
     try {
       List<GroupModel> groups = await _databaseService.streamUserGroups(_currentUserId).first;
@@ -55,7 +88,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
       for (GroupModel group in groups) {
         try {
-          // IMPORTANT: Use the method that considers settlements
           Map<String, double> groupBalances = await _databaseService.calculateGroupBalancesWithSettlements(group.id);
           double userBalance = groupBalances[_currentUserId] ?? 0.0;
 
@@ -79,26 +111,22 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Navigate to screen and refresh balance when returning
   Future<void> _navigateAndRefresh(Widget screen) async {
     final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => screen));
-    // Refresh balance when returning
     _refreshBalance();
+    _loadUserName();
 
-    // If returning from group detail, also refresh notifications
     if (mounted) {
       setState(() {});
     }
   }
 
-  // Refresh notifications manually
   void _refreshNotifications() {
     if (mounted) {
       setState(() {});
     }
   }
 
-  // Show notifications dialog
   void _showNotificationsDialog(BuildContext context, dynamic user) {
     showDialog(
       context: context,
@@ -156,11 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ? Icon(Icons.fiber_manual_record, color: Colors.red, size: 12)
                             : null,
                         onTap: () async {
-                          Navigator.pop(context); // Close dialog
-
-                          // DON'T mark activities as seen here
-                          // Only mark as seen when user clicks history button in group
-
+                          Navigator.pop(context);
                           _navigateAndRefresh(GroupDetailScreen(groupId: group.id));
                         },
                       );
@@ -194,7 +218,6 @@ class _HomeScreenState extends State<HomeScreen> {
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
         actions: [
-          // Notification bell for all unread activities
           user != null ? StreamBuilder<int>(
             stream: _databaseService.streamUserGroups(user.uid).asyncMap((groups) async {
               print('🏠 HomeScreen: Processing ${groups.length} groups for notifications');
@@ -212,7 +235,6 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context, unreadSnapshot) {
               int totalUnread = unreadSnapshot.data ?? 0;
 
-              // Debug logging
               print('🔔 HomeScreen notification badge: $totalUnread unread activities');
               print('🔔 Connection state: ${unreadSnapshot.connectionState}');
               if (unreadSnapshot.hasError) {
@@ -257,7 +279,6 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ) : SizedBox.shrink(),
 
-          // Theme toggle button
           Consumer<ThemeService>(
             builder: (context, themeService, child) {
               return IconButton(
@@ -268,7 +289,6 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
 
-          // Settings button (replaces logout button)
           IconButton(
             icon: Icon(Icons.settings),
             onPressed: () {
@@ -282,7 +302,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ? Center(child: CircularProgressIndicator())
           : Column(
         children: [
-          // Header Section
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
@@ -306,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 Text(
-                  user.displayName ?? user.email ?? 'User',
+                  _userName ?? user.displayName ?? user.email?.split('@')[0] ?? 'User',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,
@@ -315,7 +334,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 SizedBox(height: 16),
 
-                // BACK TO SIMPLE: Use the old balance stream that works
                 StreamBuilder<double>(
                   stream: _balanceController.stream,
                   initialData: 0.0,
@@ -350,7 +368,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              // Add settlement status
                               Text(
                                 balanceSnapshot.hasData && balanceSnapshot.data!.abs() < 0.01
                                     ? 'All settled up!'
@@ -392,7 +409,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // Groups Section
           Expanded(
             child: Padding(
               padding: EdgeInsets.all(24),
@@ -421,7 +437,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   SizedBox(height: 16),
 
-                  // Groups List
                   Expanded(
                     child: StreamBuilder<List<GroupModel>>(
                       stream: _databaseService.streamUserGroups(user.uid),
