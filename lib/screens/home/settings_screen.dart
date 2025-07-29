@@ -10,6 +10,8 @@ import '../../services/database_service.dart';
 import '../../services/biometric_service.dart';
 import '../../models/user_model.dart';
 import '../../dialogs/auth_dialogs.dart';
+import 'notification_settings_screen.dart';
+
 
 class SettingsScreen extends StatefulWidget {
   @override
@@ -583,10 +585,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   _buildSettingsTile(
                     icon: Icons.account_balance,
-                    title: 'Bankrekening',
+                    title: 'Bank account',
                     subtitle: _currentUser?.bankAccount != null
                         ? 'IBAN: ${BankingService.formatIBAN(_currentUser!.bankAccount!)}'
-                        : 'Geen bankrekening toegevoegd',
+                        : 'No bank account added',
                     onTap: _showBankAccountDialog,
                     trailing: _currentUser?.bankAccount != null
                         ? Icon(Icons.check_circle, color: Colors.green, size: 20)
@@ -646,107 +648,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   SizedBox(height: 24),
 
-                  // Notifications Section
+// Notifications Section
                   _buildSectionHeader('Notifications'),
-                  Consumer<NotificationService>(
-                    builder: (context, notificationService, child) {
-                      return Column(
-                        children: [
-                          _buildSettingsTile(
-                            icon: Icons.add_circle_outline,
-                            title: 'Expense Added',
-                            subtitle: 'Get notified when expenses are added',
-                            onTap: () => notificationService.setExpenseAddedEnabled(
-                              !notificationService.expenseAddedEnabled,
-                            ),
-                            trailing: Switch(
-                              value: notificationService.expenseAddedEnabled,
-                              onChanged: notificationService.setExpenseAddedEnabled,
-                            ),
-                          ),
-                          _buildSettingsTile(
-                            icon: Icons.edit_outlined,
-                            title: 'Expense Edited',
-                            subtitle: 'Get notified when expenses are modified',
-                            onTap: () => notificationService.setExpenseEditedEnabled(
-                              !notificationService.expenseEditedEnabled,
-                            ),
-                            trailing: Switch(
-                              value: notificationService.expenseEditedEnabled,
-                              onChanged: notificationService.setExpenseEditedEnabled,
-                            ),
-                          ),
-                          _buildSettingsTile(
-                            icon: Icons.delete_outline,
-                            title: 'Expense Deleted',
-                            subtitle: 'Get notified when expenses are removed',
-                            onTap: () => notificationService.setExpenseDeletedEnabled(
-                              !notificationService.expenseDeletedEnabled,
-                            ),
-                            trailing: Switch(
-                              value: notificationService.expenseDeletedEnabled,
-                              onChanged: notificationService.setExpenseDeletedEnabled,
-                            ),
-                          ),
-                          _buildSettingsTile(
-                            icon: Icons.person_add_outlined,
-                            title: 'Member Added',
-                            subtitle: 'Get notified when new members join groups',
-                            onTap: () => notificationService.setMemberAddedEnabled(
-                              !notificationService.memberAddedEnabled,
-                            ),
-                            trailing: Switch(
-                              value: notificationService.memberAddedEnabled,
-                              onChanged: notificationService.setMemberAddedEnabled,
-                            ),
-                          ),
-                          _buildSettingsTile(
-                            icon: Icons.person_remove_outlined,
-                            title: 'Member Removed',
-                            subtitle: 'Get notified when members leave groups',
-                            onTap: () => notificationService.setMemberRemovedEnabled(
-                              !notificationService.memberRemovedEnabled,
-                            ),
-                            trailing: Switch(
-                              value: notificationService.memberRemovedEnabled,
-                              onChanged: notificationService.setMemberRemovedEnabled,
-                            ),
-                          ),
-                          _buildSettingsTile(
-                            icon: Icons.group_add_outlined,
-                            title: 'Group Created',
-                            subtitle: 'Get notified when added to new groups',
-                            onTap: () => notificationService.setGroupCreatedEnabled(
-                              !notificationService.groupCreatedEnabled,
-                            ),
-                            trailing: Switch(
-                              value: notificationService.groupCreatedEnabled,
-                              onChanged: notificationService.setGroupCreatedEnabled,
-                            ),
-                          ),
-                          _buildSettingsTile(
-                            icon: Icons.notifications_active,
-                            title: 'Test Notification',
-                            subtitle: 'Send a test notification',
-                            onTap: () async {
-                              await notificationService.sendTestNotification();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Test notification sent!'),
-                                  backgroundColor: Colors.green,
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
+                  _buildSettingsTile(
+                    icon: Icons.notifications_outlined,
+                    title: 'Notification Settings',
+                    subtitle: 'Manage your notification preferences',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => NotificationSettingsScreen(),
+                        ),
                       );
                     },
                   ),
 
-
                   SizedBox(height: 24),
-
 
                   // Support Section
                   _buildSectionHeader('Support & Feedback'),

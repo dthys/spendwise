@@ -23,7 +23,7 @@ class BankAccountDialog {
               SizedBox(width: 8),
               Expanded( // This fixes the overflow
                 child: Text(
-                  currentIBAN == null ? 'Bankrekening toevoegen' : 'Bankrekening wijzigen',
+                  currentIBAN == null ? 'Bank account' : 'Bank account',
                   overflow: TextOverflow.ellipsis, // Handle very long text gracefully
                 ),
               ),
@@ -39,7 +39,7 @@ class BankAccountDialog {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Voer je IBAN rekeningnummer in om directe betalingen mogelijk te maken.',
+                      'Fill in your bank account to make direct payments possible',
                       style: TextStyle(color: Colors.grey.shade600),
                     ),
                     SizedBox(height: 16),
@@ -47,11 +47,11 @@ class BankAccountDialog {
                     TextFormField(
                       controller: _ibanController,
                       decoration: InputDecoration(
-                        labelText: 'IBAN Rekeningnummer',
+                        labelText: 'IBAN',
                         hintText: 'BE68 5390 0754 7034',
                         prefixIcon: Icon(Icons.account_balance),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        helperText: 'Formaat: BE68 5390 0754 7034',
+                        helperText: 'Format: BE68 5390 0754 7034',
                       ),
                       inputFormatters: [
                         UpperCaseTextFormatter(), // Apply uppercase first
@@ -65,16 +65,16 @@ class BankAccountDialog {
                       },
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Voer een IBAN nummer in';
+                          return 'Fill in an IBAN number';
                         }
 
                         String cleanIBAN = value.replaceAll(' ', '');
                         if (cleanIBAN.length < 15) {
-                          return 'IBAN is te kort';
+                          return 'IBAN is too short';
                         }
 
                         if (!BankingService.validateIBAN(cleanIBAN)) {
-                          return 'Ongeldig IBAN nummer';
+                          return 'Invalid IBAN number';
                         }
 
                         return null;
@@ -161,7 +161,7 @@ class BankAccountDialog {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                             : Icon(Icons.verified),
-                        label: Text(_isValidating ? 'Valideren...' : 'Valideer IBAN'),
+                        label: Text(_isValidating ? 'Validating...' : 'Validate IBAN'),
                       ),
                     ),
 
@@ -181,7 +181,7 @@ class BankAccountDialog {
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Je IBAN wordt veilig opgeslagen en alleen gebruikt voor betalingen binnen je groepen.',
+                              'Your IBAN is stored securely and only used for payments within your groups.',
                               style: TextStyle(
                                 color: Colors.blue.shade700,
                                 fontSize: 12,
@@ -199,7 +199,7 @@ class BankAccountDialog {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Annuleren'),
+              child: Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -208,7 +208,7 @@ class BankAccountDialog {
                   Navigator.pop(context, cleanIBAN);
                 }
               },
-              child: Text('Opslaan'),
+              child: Text('Save'),
             ),
           ],
         ),
