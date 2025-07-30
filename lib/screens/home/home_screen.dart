@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../insights/smart_insights_screen.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../services/theme_service.dart';
@@ -674,7 +675,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     );
   }
 
-  // Build Groups View
+// Build Groups View
   Widget _buildGroupsView(String userId) {
     return Column(
       children: [
@@ -806,6 +807,41 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     );
   }
 
+// Helper method for bigger Smart Insights button (stays on the right)
+  Widget _buildBiggerRightSideButton() {
+    return TextButton(
+      onPressed: () {
+        _navigateWithTransition(SmartInsightsScreen());
+      },
+      style: TextButton.styleFrom(
+        backgroundColor: Colors.white.withOpacity(0.15),
+        padding: EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        minimumSize: Size(80, 36),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.auto_awesome, color: Colors.white, size: 16),
+          SizedBox(width: 4),
+          Text(
+            'Insights',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
@@ -833,12 +869,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             stream: _databaseService.streamTotalUnreadActivities(user.uid),
             builder: (context, unreadSnapshot) {
               int totalUnread = unreadSnapshot.data ?? 0;
-
-              print('🔔 HomeScreen notification badge: $totalUnread unread activities');
-              print('🔔 Connection state: ${unreadSnapshot.connectionState}');
-              if (unreadSnapshot.hasError) {
-                print('❌ Notification stream error: ${unreadSnapshot.error}');
-              }
 
               return IconButton(
                 icon: Stack(
@@ -903,7 +933,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           ? Center(child: CircularProgressIndicator())
           : Column(
         children: [
-          // Balance Header
+          // Balance Header - BUTTON STAYS ON THE RIGHT BUT BIGGER
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
@@ -933,6 +963,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 SizedBox(height: 16),
 
@@ -947,60 +978,57 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Icon(Icons.account_balance_wallet, color: Colors.white),
                           SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Your Balance',
-                                style: TextStyle(
-                                  color: Colors.blue.shade100,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              Text(
-                                balanceSnapshot.hasData
-                                    ? '€${balanceSnapshot.data!.toStringAsFixed(2)}'
-                                    : '€0.00',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                balanceSnapshot.hasData && balanceSnapshot.data!.abs() < 0.01
-                                    ? 'All settled up!'
-                                    : balanceSnapshot.hasData && balanceSnapshot.data! > 0
-                                    ? 'You are owed'
-                                    : 'You owe',
-                                style: TextStyle(
-                                  color: Colors.blue.shade100,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Spacer(),
-                          TextButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Smart Insights coming next!')),
-                              );
-                            },
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
+                          // Balance info - takes less space to give button more room
+                          Expanded(
+                            flex: 1, // Reduced from 3 to 2
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(Icons.insights, color: Colors.white, size: 16),
-                                SizedBox(width: 4),
                                 Text(
-                                  'Insights',
-                                  style: TextStyle(color: Colors.white),
+                                  'Your Balance',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade100,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    balanceSnapshot.hasData
+                                        ? '€${balanceSnapshot.data!.toStringAsFixed(2)}'
+                                        : '€0.00',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  balanceSnapshot.hasData && balanceSnapshot.data!.abs() < 0.01
+                                      ? 'All settled up!'
+                                      : balanceSnapshot.hasData && balanceSnapshot.data! > 0
+                                      ? 'You are owed'
+                                      : 'You owe',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade100,
+                                    fontSize: 12,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
+                          ),
+                          SizedBox(width: 12),
+                          // Smart Insights button - more space allocated
+                          Expanded(
+                            flex: 1, // More generous space allocation
+                            child: _buildBiggerRightSideButton(),
                           ),
                         ],
                       ),
@@ -1011,7 +1039,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             ),
           ),
 
-          // Quick Search Bar (optional - you can comment this out if you don't want it)
+          // Quick Search Bar
           _buildQuickSearchBar(),
 
           // Toggle Buttons
