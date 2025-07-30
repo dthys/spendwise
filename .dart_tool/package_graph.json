@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "spendwise",
-      "version": "1.0.0+1",
+      "version": "1.0.1+2",
       "dependencies": [
         "android_intent_plus",
         "cloud_firestore",
