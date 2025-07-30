@@ -12,6 +12,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/expenses/activity_log_screen.dart';
+import 'services/update_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +28,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthService()),
         ChangeNotifierProvider(create: (_) => ThemeService()),
         ChangeNotifierProvider(create: (_) => BiometricService()),
-        ChangeNotifierProvider(create: (_) => NotificationService()), // Add this
+        ChangeNotifierProvider(create: (_) => NotificationService()),
+        ChangeNotifierProvider(create: (_) => UpdateService()),
       ],
       child: Consumer<ThemeService>(
         builder: (context, themeService, child) {
@@ -229,6 +231,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       },
     );
   }
+
 
   Future<void> ensureUserInFirestore(User user) async {
     try {

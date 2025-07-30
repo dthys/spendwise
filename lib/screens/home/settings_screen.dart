@@ -11,6 +11,8 @@ import '../../services/biometric_service.dart';
 import '../../models/user_model.dart';
 import '../../dialogs/auth_dialogs.dart';
 import 'notification_settings_screen.dart';
+import '../../services/update_service.dart';
+import '../../dialogs/update_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   @override
@@ -22,10 +24,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
   UserModel? _currentUser;
   bool _isLoading = true;
 
+  UpdateService? _updateService;
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _initializeUpdateService();
+  }
+
+  Future<void> _initializeUpdateService() async {
+    _updateService = Provider.of<UpdateService>(context, listen: false);
+    await _updateService?.initialize();
+  }
+
+  Future<void> _checkForUpdates() async {
+    if (_updateService == null) return;
+
+    // Show loading indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 16),
+            Text('Checking for updates...'),
+          ],
+        ),
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    final updateAvailable = await _updateService!.checkForUpdates();
+
+    if (mounted) {
+      await UpdateDialog.showUpdateCheckDialog(
+        context,
+        _updateService!,
+        updateAvailable,
+      );
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -652,33 +694,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'Get help with your account',
                     onTap: _launchEmail,
                   ),
-                  _buildSettingsTile(
-                    icon: Icons.info_outline,
-                    title: 'About Spendwise',
-                    subtitle: 'Version 1.0.0',
-                    onTap: () {
-                      showAboutDialog(
-                        context: context,
-                        applicationName: 'Spendwise',
-                        applicationVersion: '1.0.0',
-                        applicationIcon: Container(
-                          width: 60,
-                          height: 60,
+                  Consumer<UpdateService>(
+                    builder: (context, updateService, child) {
+                      return _buildSettingsTile(
+                        icon: Icons.system_update,
+                        title: 'Check for Updates',
+                        subtitle: updateService.currentVersion != null
+                            ? 'Current version: ${updateService.currentVersion}'
+                            : 'Tap to check for updates',
+                        onTap: _checkForUpdates,
+                        trailing: updateService.isCheckingForUpdate
+                            ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                            : updateService.updateAvailable
+                            ? Container(
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade500,
-                            borderRadius: BorderRadius.circular(15),
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Icon(
-                            Icons.account_balance_wallet,
-                            color: Colors.white,
-                            size: 30,
+                          child: Text(
+                            'NEW',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        children: [
-                          Text('Split expenses with friends easily and efficiently.'),
-                          SizedBox(height: 16),
-                          Text('Made with ❤️ for easy expense sharing'),
-                        ],
+                        )
+                            : Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
+                      );
+                    },
+                  ),
+                  Consumer<UpdateService>(
+                    builder: (context, updateService, child) {
+                      return _buildSettingsTile(
+                        icon: Icons.info_outline,
+                        title: 'About Spendwise',
+                        subtitle: updateService.currentVersion != null
+                            ? 'Version ${updateService.currentVersion}'
+                            : 'Version 1.0.0',
+                        onTap: () {
+                          showAboutDialog(
+                            context: context,
+                            applicationName: 'Spendwise',
+                            applicationVersion: updateService.currentVersion ?? '1.0.0',
+                            applicationIcon: Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade500,
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              child: Icon(
+                                Icons.account_balance_wallet,
+                                color: Colors.white,
+                                size: 30,
+                              ),
+                            ),
+                            children: [
+                              Text('Split expenses with friends easily and efficiently.'),
+                              SizedBox(height: 16),
+                              Text('Made with ❤️ for easy expense sharing'),
+                            ],
+                          );
+                        },
                       );
                     },
                   ),
