@@ -736,12 +736,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         title: 'About Spendwise',
                         subtitle: updateService.currentVersion != null
                             ? 'Version ${updateService.currentVersion}'
-                            : 'Version 1.0.0',
+                            : 'Version 1.0.2',
                         onTap: () {
                           showAboutDialog(
                             context: context,
                             applicationName: 'Spendwise',
-                            applicationVersion: updateService.currentVersion ?? '1.0.0',
+                            applicationVersion: updateService.currentVersion ?? '1.0.2',
                             applicationIcon: Container(
                               width: 60,
                               height: 60,

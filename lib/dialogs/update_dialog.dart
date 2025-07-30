@@ -226,7 +226,7 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
             children: [
               Icon(Icons.download, color: Colors.blue.shade500),
               SizedBox(width: 8),
-              Text('Downloading Update'),
+              Text('Downloading...'),
             ],
           ),
           content: Column(

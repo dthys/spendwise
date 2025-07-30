@@ -23,6 +23,9 @@ dependencies:
   path_provider: ^2.1.2
   package_info_plus: ^5.0.1
   android_intent_plus: ^4.0.3
+  device_info_plus: ^9.1.2
+  permission_handler: ^11.3.1
+
 
   # UI & Utils
   cupertino_icons: ^1.0.8
