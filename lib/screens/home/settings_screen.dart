@@ -13,6 +13,10 @@ import '../../dialogs/auth_dialogs.dart';
 import 'notification_settings_screen.dart';
 import '../../services/update_service.dart';
 import '../../dialogs/update_dialog.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'dart:io';
 
 class SettingsScreen extends StatefulWidget {
   @override
@@ -418,6 +422,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _shareApp() async {
+    try {
+      PackageInfo packageInfo = await PackageInfo.fromPlatform();
+
+      // Your actual GitHub repository download link
+      const String downloadLink = 'https://github.com/dthys/spendwise/releases/latest/download/app-release.apk';
+
+      await Share.share(
+        '📱 *Download Spendwise v${packageInfo.version}*\n\n'
+            '💰 Split expenses with friends easily!\n'
+            '✨ Track shared expenses and settle debts effortlessly\n'
+            '🎯 Perfect for group trips, shared meals, and roommate expenses\n\n'
+            '📥 *Download here:*\n$downloadLink\n\n'
+            '⚠️ *Installation:* Enable "Install from unknown sources" in Settings > Security\n\n'
+            '🔒 Safe & Secure • Made with ❤️',
+        subject: 'Try Spendwise - Split Expenses App!',
+      );
+
+      // Optional: Track sharing for analytics
+      print('App shared via link');
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error sharing app: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Future<void> _showSignOutDialog() async {
     return showDialog(
       context: context,
@@ -682,6 +717,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   // Support Section
                   _buildSectionHeader('Support & Feedback'),
+                  _buildSettingsTile(
+                    icon: Icons.share,
+                    title: 'Share Spendwise',
+                    subtitle: 'Share this app with friends',
+                    onTap: _shareApp,
+                  ),
                   _buildSettingsTile(
                     icon: Icons.star_outline,
                     title: 'Rate Spendwise',
