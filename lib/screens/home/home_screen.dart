@@ -980,7 +980,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                           TextButton(
                             onPressed: () {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Smart Insights coming next!')),
+                                SnackBar(content: Text('Smarts Insights coming next!')),
                               );
                             },
                             child: Row(
