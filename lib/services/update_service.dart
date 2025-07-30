@@ -8,10 +8,11 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../config/app_config.dart';
 
 class UpdateService extends ChangeNotifier {
-  static const String _githubApiUrl = 'https://api.github.com/repos/dthys/spendwise/releases/latest';
-  static const String _githubToken = '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'; // Your GitHub token
+  static const String _githubApiUrl = AppConfig.githubApiUrl;
+  static const String _githubToken = AppConfig.githubToken;
   static bool _hasCheckedThisSession = false;
 
   bool _isCheckingForUpdate = false;
@@ -23,6 +24,7 @@ class UpdateService extends ChangeNotifier {
   String? _releaseNotes;
   bool _updateAvailable = false;
   String? _lastError;
+
 
   // Getters
   bool get isCheckingForUpdate => _isCheckingForUpdate;
@@ -38,6 +40,13 @@ class UpdateService extends ChangeNotifier {
   /// Initialize the service and get current app version
   Future<void> initialize() async {
     try {
+      // Validate token is configured
+      if (_githubToken.isEmpty || _githubToken == 'YOUR_NEW_GITHUB_TOKEN_HERE') {
+        _lastError = 'GitHub token not configured';
+        print('❌ $_lastError - Please configure your GitHub token in app_config.dart');
+        return;
+      }
+
       final packageInfo = await PackageInfo.fromPlatform();
       _currentVersion = packageInfo.version;
       print('🔧 Initialized UpdateService - Current version: $_currentVersion');
