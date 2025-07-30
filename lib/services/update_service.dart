@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:android_intent_plus/flag.dart';
@@ -337,6 +338,7 @@ class UpdateService extends ChangeNotifier {
   }
 
   /// Enhanced download with better error handling and debugging
+  /// Fixed download for PRIVATE GitHub repositories
   Future<String?> downloadUpdateWithProgress() async {
     if (_downloadUrl == null || _isDownloading) {
       _lastError = _downloadUrl == null ? 'No download URL available' : 'Already downloading';
@@ -357,25 +359,46 @@ class UpdateService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      print('📥 Starting download from: $_downloadUrl');
+      print('📥 Starting PRIVATE REPO download...');
 
-      final request = http.Request('GET', Uri.parse(_downloadUrl!));
+      // For private repos, we need to get the asset ID and use the API
+      int? assetId = await _getAssetId();
+      if (assetId == null) {
+        throw Exception('Could not find APK asset ID');
+      }
+
+      print('📥 Using GitHub Asset API with ID: $assetId');
+
+      // Use GitHub Assets API for private repos
+      final apiUrl = 'https://api.github.com/repos/dthys/spendwise/releases/assets/$assetId';
+
+      final request = http.Request('GET', Uri.parse(apiUrl));
       request.headers.addAll({
+        'Accept': 'application/octet-stream', // CRUCIAL for binary download
+        'Authorization': 'Bearer $_githubToken', // REQUIRED for private repos
         'User-Agent': 'Spendwise-App/1.0',
-        'Accept': '*/*',
-        'Accept-Encoding': 'identity', // Disable compression for easier progress tracking
+        'X-GitHub-Api-Version': '2022-11-28',
       });
 
       final client = http.Client();
-      final response = await client.send(request);
-      print('📥 Download response status: ${response.statusCode}');
-      print('📥 Response headers: ${response.headers}');
+      final response = await client.send(request).timeout(Duration(seconds: 30));
+
+      print('📥 API Download response status: ${response.statusCode}');
+      print('📥 Content-Type: ${response.headers['content-type']}');
 
       if (response.statusCode == 200) {
-        // Get storage directory with fallbacks
+        // Verify we got binary content, not JSON/HTML
+        final contentType = response.headers['content-type'] ?? '';
+        if (contentType.contains('application/json') || contentType.contains('text/html')) {
+          client.close();
+          throw Exception('Got $contentType instead of binary APK data');
+        }
+
+        // Continue with download
         Directory? directory = await _getStorageDirectory();
 
         if (directory == null) {
+          client.close();
           throw Exception('Could not access storage directory');
         }
 
@@ -385,7 +408,6 @@ class UpdateService extends ChangeNotifier {
 
         print('📁 Download path: $filePath');
 
-        // Delete existing file if it exists
         if (await file.exists()) {
           await file.delete();
           print('🗑️ Deleted existing file');
@@ -398,7 +420,6 @@ class UpdateService extends ChangeNotifier {
         final sink = file.openWrite();
 
         try {
-          // FIXED: Use await for the stream processing
           await for (final chunk in response.stream) {
             sink.add(chunk);
             downloadedBytes += chunk.length;
@@ -406,57 +427,31 @@ class UpdateService extends ChangeNotifier {
             if (contentLength > 0) {
               _downloadProgress = downloadedBytes / contentLength;
             } else {
-              _downloadProgress = 0.5; // Indeterminate progress
+              _downloadProgress = 0.5;
             }
 
-            if (downloadedBytes % (1024 * 1024) < chunk.length) { // Log every MB
+            if (downloadedBytes % (512 * 1024) < chunk.length) { // Log every 512KB
               print('📊 Downloaded: ${(downloadedBytes / 1024 / 1024).toStringAsFixed(1)} MB');
             }
 
             notifyListeners();
           }
 
-          // Close the sink after stream is complete
           await sink.flush();
           await sink.close();
           client.close();
 
-          print('✅ Download stream completed');
           _downloadProgress = 1.0;
           notifyListeners();
 
-          // Verify the downloaded file
           if (await file.exists()) {
             final fileSize = await file.length();
-            print('✅ APK downloaded successfully');
-            print('📁 File path: $filePath');
-            print('📊 File size: $fileSize bytes');
-            print('📊 Expected size: $contentLength bytes');
+            print('✅ APK downloaded successfully - Size: $fileSize bytes');
 
-            if (fileSize > 0) {
-              // Additional verification - check if it's a valid APK by reading magic bytes
-              try {
-                final bytes = await file.openRead(0, 4).first;
-                final magicBytes = bytes.sublist(0, 4);
-                // APK files are ZIP files, should start with "PK"
-                if (magicBytes[0] == 0x50 && magicBytes[1] == 0x4B) {
-                  print('✅ File appears to be a valid APK (ZIP magic bytes found)');
-                } else {
-                  print('⚠️ Warning: File may not be a valid APK (magic bytes: $magicBytes)');
-                }
-              } catch (e) {
-                print('⚠️ Could not verify file magic bytes: $e');
-              }
-
-              // Verify file size matches expected
-              if (contentLength > 0 && fileSize != contentLength) {
-                print('⚠️ Warning: File size mismatch - Downloaded: $fileSize, Expected: $contentLength');
-                // Don't fail here, sometimes servers report slightly different sizes
-              }
-
+            if (fileSize > 1024) { // APK should be at least 1KB
               return filePath;
             } else {
-              throw Exception('Downloaded file is empty');
+              throw Exception('Downloaded file is too small: $fileSize bytes');
             }
           } else {
             throw Exception('Downloaded file does not exist');
@@ -465,18 +460,23 @@ class UpdateService extends ChangeNotifier {
         } catch (e) {
           await sink.close();
           client.close();
-
-          // Clean up partial file
           if (await file.exists()) {
             await file.delete();
-            print('🗑️ Cleaned up partial download');
           }
           throw e;
         }
+
+      } else if (response.statusCode == 404) {
+        client.close();
+        throw Exception('Asset not found - check if release and APK exist');
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        client.close();
+        throw Exception('Authentication failed - check GitHub token permissions');
       } else {
         client.close();
-        throw Exception('Failed to download APK: HTTP ${response.statusCode}\nHeaders: ${response.headers}');
+        throw Exception('Download failed: HTTP ${response.statusCode}');
       }
+
     } catch (e) {
       _lastError = 'Download failed: $e';
       print('❌ $_lastError');
@@ -487,6 +487,108 @@ class UpdateService extends ChangeNotifier {
     }
   }
 
+  /// Get the asset ID for the APK file from the latest release
+  Future<int?> _getAssetId() async {
+    try {
+      print('🔍 Getting asset ID from GitHub API...');
+
+      final headers = {
+        'Accept': 'application/vnd.github.v3+json',
+        'Authorization': 'Bearer $_githubToken',
+        'User-Agent': 'Spendwise-App/1.0',
+        'X-GitHub-Api-Version': '2022-11-28',
+      };
+
+      final response = await http.get(
+        Uri.parse(_githubApiUrl),
+        headers: headers,
+      ).timeout(Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final assets = data['assets'] as List?;
+
+        if (assets != null && assets.isNotEmpty) {
+          for (final asset in assets) {
+            final name = asset['name']?.toString() ?? '';
+            if (name.toLowerCase().endsWith('.apk')) {
+              final assetId = asset['id'];
+              print('✅ Found APK asset: $name (ID: $assetId)');
+              return assetId;
+            }
+          }
+        }
+      } else {
+        print('❌ GitHub API error: ${response.statusCode}');
+        print('Response: ${response.body}');
+      }
+
+      return null;
+    } catch (e) {
+      print('❌ Error getting asset ID: $e');
+      return null;
+    }
+  }
+  /// Get the actual download URL using GitHub API
+  Future<String?> _getActualDownloadUrl() async {
+    try {
+      print('🔍 Getting actual download URL from GitHub API...');
+
+      // Use the GitHub API to get release assets
+      final headers = {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Spendwise-App/1.0',
+        'X-GitHub-Api-Version': '2022-11-28',
+      };
+
+      // Add auth if available
+      if (_githubToken.isNotEmpty && _githubToken != 'YOUR_NEW_GITHUB_TOKEN_HERE') {
+        headers['Authorization'] = 'Bearer $_githubToken';
+      }
+
+      final response = await http.get(
+        Uri.parse(_githubApiUrl),
+        headers: headers,
+      ).timeout(Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final assets = data['assets'] as List?;
+
+        if (assets != null && assets.isNotEmpty) {
+          for (final asset in assets) {
+            final name = asset['name']?.toString() ?? '';
+            if (name.toLowerCase().endsWith('.apk')) {
+              // Try different URL formats
+              final browserDownloadUrl = asset['browser_download_url']?.toString();
+              final url = asset['url']?.toString(); // API URL
+
+              print('📎 Found APK asset: $name');
+              print('🔗 Browser download URL: $browserDownloadUrl');
+              print('🔗 API URL: $url');
+
+              // For public repos, try browser_download_url with proper headers
+              if (browserDownloadUrl != null) {
+                return browserDownloadUrl;
+              }
+
+              // Fallback to API URL with Accept header
+              if (url != null) {
+                return url;
+              }
+            }
+          }
+        }
+      }
+
+      print('❌ Could not find APK asset in GitHub response');
+      return null;
+
+    } catch (e) {
+      print('❌ Error getting actual download URL: $e');
+      return null;
+    }
+  }
   /// Get the best available storage directory
   Future<Directory?> _getStorageDirectory() async {
     try {
