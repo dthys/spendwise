@@ -12,6 +12,8 @@ import '../groups/groups_screen.dart';
 import '../home/settings_screen.dart';
 import '../search/search_screen.dart';
 import '../search/search_delegate.dart';
+import '../../dialogs/startup_update_dialog.dart';
+import '../../services/update_service.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -24,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   late StreamController<double> _balanceController;
   late String _currentUserId;
   String? _userName;
+
 
   // Cache to prevent unnecessary rebuilds
   double? _cachedBalance;
@@ -49,8 +52,12 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       _currentUserId = authService.currentUser!.uid;
       _refreshBalance();
       _loadUserName();
+
+      // Check for updates on first home screen load
+
     }
   }
+
 
   @override
   void dispose() {

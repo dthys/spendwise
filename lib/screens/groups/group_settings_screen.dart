@@ -7,6 +7,7 @@ import '../../models/user_model.dart';
 import '../../dialogs/bank_account_dialog.dart';
 import '../../services/banking_service.dart';
 
+
 class GroupSettingsScreen extends StatefulWidget {
   final GroupModel group;
 
@@ -25,12 +26,16 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
   bool _isLoading = true;
   bool _isAddingMember = false;
 
+
+
   @override
   void initState() {
     super.initState();
     _loadMembers();
-    _loadCurrentUser(); // Voeg deze toe
+    _loadCurrentUser();
   }
+
+
 
   @override
   void dispose() {

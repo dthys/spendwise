@@ -11,6 +11,8 @@ import 'package:permission_handler/permission_handler.dart';
 
 class UpdateService extends ChangeNotifier {
   static const String _githubApiUrl = 'https://api.github.com/repos/dthys/spendwise/releases/latest';
+  static const String _githubToken = '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'; // Your GitHub token
+  static bool _hasCheckedThisSession = false;
 
   bool _isCheckingForUpdate = false;
   bool _isDownloading = false;
@@ -46,7 +48,188 @@ class UpdateService extends ChangeNotifier {
     }
   }
 
-  /// Check and request necessary permissions - UPDATED VERSION
+  /// Check for updates only if not already checked this session
+  Future<bool> checkForUpdatesOnce({bool silent = false}) async {
+    if (_hasCheckedThisSession) {
+      print('🔄 Update already checked this session, skipping...');
+      return _updateAvailable;
+    }
+
+    final result = await checkForUpdates(silent: silent);
+    _hasCheckedThisSession = true;
+    print('✅ First update check completed for this session');
+    return result;
+  }
+
+  /// Reset session flag (call when app restarts)
+  static void resetSession() {
+    _hasCheckedThisSession = false;
+  }
+
+  /// Check for updates from GitHub releases - WITH AUTHENTICATION
+  Future<bool> checkForUpdates({bool silent = false}) async {
+    if (_isCheckingForUpdate) return false;
+
+    _isCheckingForUpdate = true;
+    _updateAvailable = false;
+    _lastError = null;
+    if (!silent) notifyListeners();
+
+    try {
+      print('🔍 Checking for updates with authentication...');
+
+      // Enhanced headers with authentication
+      final headers = {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Spendwise-App/1.0',
+        'Authorization': 'Bearer $_githubToken', // This increases your rate limit to 5,000/hour
+        'X-GitHub-Api-Version': '2022-11-28',
+      };
+
+      final response = await http.get(
+        Uri.parse(_githubApiUrl),
+        headers: headers,
+      ).timeout(Duration(seconds: 15));
+
+      print('🌐 GitHub API response status: ${response.statusCode}');
+
+      // Check rate limit headers for debugging
+      final rateLimitRemaining = response.headers['x-ratelimit-remaining'];
+      final rateLimitReset = response.headers['x-ratelimit-reset'];
+      print('🔢 Rate limit remaining: $rateLimitRemaining');
+      if (rateLimitReset != null) {
+        final resetTime = DateTime.fromMillisecondsSinceEpoch(int.parse(rateLimitReset) * 1000);
+        print('⏰ Rate limit resets at: $resetTime');
+      }
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        _latestVersion = data['tag_name']?.toString().replaceFirst('v', '') ?? data['name'];
+        _releaseNotes = data['body'] ?? 'No release notes available';
+
+        print('📦 Latest version from GitHub: $_latestVersion');
+        print('📝 Release notes length: ${_releaseNotes?.length ?? 0} characters');
+
+        // Find APK download URL with better debugging
+        final assets = data['assets'] as List?;
+        print('📎 Found ${assets?.length ?? 0} assets');
+
+        if (assets != null && assets.isNotEmpty) {
+          for (int i = 0; i < assets.length; i++) {
+            final asset = assets[i];
+            final name = asset['name']?.toString() ?? '';
+            final downloadUrl = asset['browser_download_url']?.toString() ?? '';
+            final size = asset['size'] ?? 0;
+
+            print('📎 Asset $i: $name (${size} bytes)');
+
+            if (name.toLowerCase().endsWith('.apk')) {
+              _downloadUrl = downloadUrl;
+              print('✅ Found APK: $name');
+              print('🔗 Download URL: $downloadUrl');
+              break;
+            }
+          }
+        }
+
+        if (_downloadUrl == null) {
+          _lastError = 'No APK file found in release assets';
+          print('❌ $_lastError');
+        }
+
+        // Compare versions
+        if (_currentVersion != null && _latestVersion != null) {
+          _updateAvailable = _isNewerVersion(_latestVersion!, _currentVersion!);
+          print('🔄 Version comparison: $_currentVersion -> $_latestVersion = $_updateAvailable');
+        }
+
+        print('✅ Update check completed - Latest: $_latestVersion, Current: $_currentVersion, Available: $_updateAvailable');
+
+      } else if (response.statusCode == 403) {
+        // Handle rate limit or authentication issues
+        try {
+          final responseBody = json.decode(response.body);
+          final message = responseBody['message']?.toString() ?? 'Unknown error';
+
+          if (message.contains('rate limit')) {
+            _lastError = 'GitHub rate limit exceeded. Please try again later.';
+            print('⏰ $_lastError');
+          } else if (message.contains('Bad credentials')) {
+            _lastError = 'GitHub authentication failed. Please check your token.';
+            print('🔑 $_lastError');
+          } else {
+            _lastError = 'GitHub API error: $message';
+            print('❌ $_lastError');
+          }
+        } catch (e) {
+          _lastError = 'Failed to check for updates: HTTP ${response.statusCode}';
+          print('❌ $_lastError');
+        }
+
+        // Don't throw exception for rate limits, just return false
+        return false;
+
+      } else if (response.statusCode == 401) {
+        _lastError = 'GitHub authentication failed. Please check your token.';
+        print('🔑 $_lastError');
+        return false;
+
+      } else {
+        _lastError = 'Failed to check for updates: HTTP ${response.statusCode}';
+        print('❌ $_lastError');
+        print('📝 Response body: ${response.body}');
+        throw Exception(_lastError);
+      }
+
+    } catch (e) {
+      _lastError = 'Error checking for updates: $e';
+      print('❌ $_lastError');
+      _updateAvailable = false;
+    } finally {
+      _isCheckingForUpdate = false;
+      notifyListeners();
+    }
+
+    return _updateAvailable;
+  }
+
+  /// Compare version strings (enhanced debugging)
+  bool _isNewerVersion(String latestVersion, String currentVersion) {
+    try {
+      print('🔍 Comparing versions: $currentVersion vs $latestVersion');
+
+      final latest = latestVersion.split('.').map((s) => int.tryParse(s) ?? 0).toList();
+      final current = currentVersion.split('.').map((s) => int.tryParse(s) ?? 0).toList();
+
+      print('📊 Parsed latest: $latest');
+      print('📊 Parsed current: $current');
+
+      // Ensure both have same length by padding with zeros
+      while (latest.length < 3) latest.add(0);
+      while (current.length < 3) current.add(0);
+
+      for (int i = 0; i < 3; i++) {
+        print('🔢 Comparing part $i: ${current[i]} vs ${latest[i]}');
+        if (latest[i] > current[i]) {
+          print('✅ Newer version detected');
+          return true;
+        }
+        if (latest[i] < current[i]) {
+          print('⏪ Older version');
+          return false;
+        }
+      }
+      print('🟰 Same version');
+      return false;
+    } catch (e) {
+      _lastError = 'Error comparing versions: $e';
+      print('❌ $_lastError');
+      return false;
+    }
+  }
+
+  /// Check and request necessary permissions
   Future<bool> checkPermissions() async {
     try {
       print('🔒 Checking permissions...');
@@ -140,121 +323,6 @@ class UpdateService extends ChangeNotifier {
       _lastError = 'Error checking permissions: $e';
       print('❌ $_lastError');
       print('❌ Stack trace: ${StackTrace.current}');
-      return false;
-    }
-  }
-
-  /// Check for updates from GitHub releases
-  Future<bool> checkForUpdates({bool silent = false}) async {
-    if (_isCheckingForUpdate) return false;
-
-    _isCheckingForUpdate = true;
-    _updateAvailable = false;
-    _lastError = null;
-    if (!silent) notifyListeners();
-
-    try {
-      print('🔍 Checking for updates...');
-      final response = await http.get(
-        Uri.parse(_githubApiUrl),
-        headers: {'Accept': 'application/vnd.github.v3+json'},
-      ).timeout(Duration(seconds: 15));
-
-      print('🌐 GitHub API response status: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        _latestVersion = data['tag_name']?.toString().replaceFirst('v', '') ?? data['name'];
-        _releaseNotes = data['body'] ?? 'No release notes available';
-
-        print('📦 Latest version from GitHub: $_latestVersion');
-        print('📝 Release notes length: ${_releaseNotes?.length ?? 0} characters');
-
-        // Find APK download URL with better debugging
-        final assets = data['assets'] as List?;
-        print('📎 Found ${assets?.length ?? 0} assets');
-
-        if (assets != null && assets.isNotEmpty) {
-          for (int i = 0; i < assets.length; i++) {
-            final asset = assets[i];
-            final name = asset['name']?.toString() ?? '';
-            final downloadUrl = asset['browser_download_url']?.toString() ?? '';
-            final size = asset['size'] ?? 0;
-
-            print('📎 Asset $i: $name (${size} bytes)');
-
-            if (name.toLowerCase().endsWith('.apk')) {
-              _downloadUrl = downloadUrl;
-              print('✅ Found APK: $name');
-              print('🔗 Download URL: $downloadUrl');
-              break;
-            }
-          }
-        }
-
-        if (_downloadUrl == null) {
-          _lastError = 'No APK file found in release assets';
-          print('❌ $_lastError');
-        }
-
-        // Compare versions
-        if (_currentVersion != null && _latestVersion != null) {
-          _updateAvailable = _isNewerVersion(_latestVersion!, _currentVersion!);
-          print('🔄 Version comparison: $_currentVersion -> $_latestVersion = $_updateAvailable');
-        }
-
-        print('✅ Update check completed - Latest: $_latestVersion, Current: $_currentVersion, Available: $_updateAvailable');
-
-      } else {
-        _lastError = 'Failed to check for updates: HTTP ${response.statusCode}';
-        print('❌ $_lastError');
-        print('📝 Response body: ${response.body}');
-        throw Exception(_lastError);
-      }
-    } catch (e) {
-      _lastError = 'Error checking for updates: $e';
-      print('❌ $_lastError');
-      _updateAvailable = false;
-    } finally {
-      _isCheckingForUpdate = false;
-      notifyListeners();
-    }
-
-    return _updateAvailable;
-  }
-
-  /// Compare version strings (enhanced debugging)
-  bool _isNewerVersion(String latestVersion, String currentVersion) {
-    try {
-      print('🔍 Comparing versions: $currentVersion vs $latestVersion');
-
-      final latest = latestVersion.split('.').map((s) => int.tryParse(s) ?? 0).toList();
-      final current = currentVersion.split('.').map((s) => int.tryParse(s) ?? 0).toList();
-
-      print('📊 Parsed latest: $latest');
-      print('📊 Parsed current: $current');
-
-      // Ensure both have same length by padding with zeros
-      while (latest.length < 3) latest.add(0);
-      while (current.length < 3) current.add(0);
-
-      for (int i = 0; i < 3; i++) {
-        print('🔢 Comparing part $i: ${current[i]} vs ${latest[i]}');
-        if (latest[i] > current[i]) {
-          print('✅ Newer version detected');
-          return true;
-        }
-        if (latest[i] < current[i]) {
-          print('⏪ Older version');
-          return false;
-        }
-      }
-      print('🟰 Same version');
-      return false;
-    } catch (e) {
-      _lastError = 'Error comparing versions: $e';
-      print('❌ $_lastError');
       return false;
     }
   }
