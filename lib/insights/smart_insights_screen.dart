@@ -8,6 +8,7 @@ import '../../services/database_service.dart';
 import '../../models/group_model.dart';
 import '../../models/expense_model.dart';
 import '../../models/user_model.dart';
+import '../utils/number_formatter.dart';
 
 // Enhanced Insights Data Models for Splitwise-style app
 class SpendingInsight {
@@ -451,7 +452,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
       if (topSpender == currentUserId) {
         _insights.add(SpendingInsight(
           title: "🎯 Group Hero",
-          description: "You're the top spender across all groups! Your friends appreciate you picking up the tab. You've spent €${memberContributions[topSpender]!.toStringAsFixed(2)} total.",
+          description: "You're the top spender across all groups! Your friends appreciate you picking up the tab. You've spent ${NumberFormatter.formatCurrency(memberContributions[topSpender]!)} total.",
           actionText: "See Who Owes You",
           icon: Icons.volunteer_activism,
           color: Colors.orange,
@@ -466,7 +467,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
 
         _insights.add(SpendingInsight(
           title: "🙏 Thank Your Friend",
-          description: "${topSpenderUser.name} is the group's biggest spender with €${memberContributions[topSpender]!.toStringAsFixed(2)}! Maybe it's time to treat them?",
+          description: "${topSpenderUser.name} is the group's biggest spender with ${NumberFormatter.formatCurrency(memberContributions[topSpender]!)}! Maybe it's time to treat them?",
           actionText: "Plan Something Special",
           icon: Icons.card_giftcard,
           color: Colors.green,
@@ -484,7 +485,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
     FriendSpendingComparison bestFriend = _friendComparisons.first;
     _insights.add(SpendingInsight(
       title: "👯‍♀️ Spending Bestie",
-      description: "${bestFriend.friend.name} is your #1 spending partner! You've shared ${bestFriend.sharedExpenseCount} expenses together totaling €${bestFriend.totalShared.toStringAsFixed(2)}.",
+      description: "${bestFriend.friend.name} is your #1 spending partner! You've shared ${bestFriend.sharedExpenseCount} expenses together totaling ${NumberFormatter.formatCurrency(bestFriend.totalShared)}.",
       actionText: "Message ${bestFriend.friend.name}",
       icon: Icons.favorite,
       color: Colors.pink,
@@ -642,7 +643,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
       if (yourContribution > friendContribution * 2 && yourContribution > 50) {
         _insights.add(SpendingInsight(
           title: "💸 Generous Friend Alert",
-          description: "You've been covering a lot for ${friend.friend.name}! You've paid €${yourContribution.toStringAsFixed(2)} vs their €${friendContribution.toStringAsFixed(2)}.",
+          description: "You've been covering a lot for ${friend.friend.name}! You've paid ${NumberFormatter.formatCurrency(yourContribution)} vs their ${NumberFormatter.formatCurrency(friendContribution)}.",
           actionText: "Suggest They Treat Next",
           icon: Icons.trending_up,
           color: Colors.amber,
@@ -670,7 +671,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
     if (totalOwed > 20) {
       _insights.add(SpendingInsight(
         title: "💳 Settlement Time",
-        description: "You owe €${totalOwed.toStringAsFixed(2)} total across ${groupDebts.length} friends. Time to settle up and keep friendships happy!",
+        description: "You owe ${NumberFormatter.formatCurrency(totalOwed)} total across ${groupDebts.length} friends. Time to settle up and keep friendships happy!",
         actionText: "Settle Debts",
         icon: Icons.payment,
         color: Colors.indigo,
@@ -776,7 +777,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
 
       _insights.add(SpendingInsight(
         title: "🎯 Group Challenge",
-        description: "Challenge your friend group to find cheaper alternatives for your usual activities. Your average group expense is €${avgGroupExpense.toStringAsFixed(2)}!",
+        description: "Challenge your friend group to find cheaper alternatives for your usual activities. Your average group expense is ${NumberFormatter.formatCurrency(avgGroupExpense)}!",
         actionText: "Start Challenge",
         icon: Icons.emoji_events,
         color: Colors.green.shade600,
@@ -838,7 +839,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                   Expanded(
                     child: _buildSummaryCard(
                       title: "You Spent",
-                      value: "€${_totalSpent.toStringAsFixed(2)}",
+                      value: NumberFormatter.formatCurrency(_totalSpent),
                       icon: Icons.euro,
                       color: Colors.blue,
                     ),
@@ -1076,13 +1077,13 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
         metricText = "${insight.data!['expenseCount']} expenses";
         metricIcon = Icons.receipt;
       } else if (insight.data!.containsKey('sharedAmount')) {
-        metricText = "€${insight.data!['sharedAmount'].toStringAsFixed(0)}";
+        metricText = NumberFormatter.formatCurrency(insight.data!['sharedAmount']);
         metricIcon = Icons.euro;
       } else if (insight.data!.containsKey('friendCount')) {
         metricText = "${insight.data!['friendCount']} friends";
         metricIcon = Icons.people;
       } else if (insight.data!.containsKey('totalOwed')) {
-        metricText = "€${insight.data!['totalOwed'].toStringAsFixed(0)}";
+        metricText = NumberFormatter.formatCurrency(insight.data!['totalOwed']);
         metricIcon = Icons.payment;
       } else if (insight.data!.containsKey('weekendExpenses')) {
         metricText = "${insight.data!['weekendExpenses']} weekends";
@@ -1193,7 +1194,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '€${category.amount.toStringAsFixed(2)}',
+                NumberFormatter.formatCurrency(category.amount),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               Text(
@@ -1372,7 +1373,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '€${friend.totalShared.toStringAsFixed(2)}',
+                NumberFormatter.formatCurrency(friend.totalShared),
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.pink,

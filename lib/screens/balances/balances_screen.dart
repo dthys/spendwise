@@ -6,6 +6,7 @@ import '../../services/database_service.dart';
 import '../../models/user_model.dart';
 import '../../models/expense_model.dart';
 import '../../models/settlement_model.dart';
+import '../../utils/number_formatter.dart';
 
 class BalancesScreen extends StatefulWidget {
   final String groupId;
@@ -295,7 +296,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
   }
 
   String _formatAmount(double amount) {
-    return '€${amount.abs().toStringAsFixed(2)}';
+    return NumberFormatter.formatCurrency(amount.abs());
   }
 
   @override
@@ -465,7 +466,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                         style: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
                                       ),
                                       trailing: Text(
-                                        balance.abs() < 0.01 ? '€0.00' : _formatAmount(balance),
+                                        balance.abs() < 0.01 ? NumberFormatter.formatCurrency(0) : _formatAmount(balance),
                                         style: TextStyle(
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,
@@ -1122,7 +1123,8 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    // EU date format: DD/MM/YYYY instead of MM/DD/YYYY
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 }
 

@@ -5,6 +5,7 @@ import '../../services/database_service.dart';
 import '../../models/expense_model.dart';
 import '../../models/group_model.dart';
 import '../../models/user_model.dart';
+import '../../utils/number_formatter.dart';
 
 class EditExpenseScreen extends StatefulWidget {
   final ExpenseModel expense;
@@ -50,7 +51,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
     // Initialize form with current expense data
     _descriptionController.text = widget.expense.description;
-    _amountController.text = widget.expense.amount.toString();
+    // Format the amount in EU format for display
+    _amountController.text = NumberFormatter.formatDecimal(widget.expense.amount, decimalPlaces: 2);
     _notesController.text = widget.expense.notes ?? '';
 
     _selectedPaidBy = widget.expense.paidBy;
@@ -66,7 +68,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       if (widget.expense.splitType != SplitType.equal &&
           widget.expense.customSplits.containsKey(member.id)) {
         double value = widget.expense.customSplits[member.id]!;
-        _customControllers[member.id]!.text = value > 0 ? value.toStringAsFixed(widget.expense.splitType == SplitType.percentage ? 1 : 2) : '';
+        if (value > 0) {
+          // Format custom splits in EU format
+          _customControllers[member.id]!.text = widget.expense.splitType == SplitType.percentage
+              ? value.toStringAsFixed(1)
+              : NumberFormatter.formatDecimal(value, decimalPlaces: 2);
+        } else {
+          _customControllers[member.id]!.text = '';
+        }
         _customSplits[member.id] = value;
       } else {
         _customSplits[member.id] = 0.0;
@@ -81,7 +90,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     // Listen to amount changes to update equal split
     _amountController.addListener(_updateEqualSplit);
   }
-
   @override
   void dispose() {
     _descriptionController.dispose();
@@ -98,18 +106,20 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
   void _updateEqualSplit() {
     if (_splitType == SplitType.equal && _selectedSplitBetween.isNotEmpty) {
-      double totalAmount = double.tryParse(_amountController.text) ?? 0;
+      // Use EU number parsing
+      double totalAmount = NumberFormatter.parseEuNumber(_amountController.text) ?? 0;
       double equalAmount = totalAmount / _selectedSplitBetween.length;
 
       for (String userId in _selectedSplitBetween) {
-        _customControllers[userId]?.text = equalAmount.toStringAsFixed(2);
+        // Format the amount in EU format for display
+        _customControllers[userId]?.text = NumberFormatter.formatDecimal(equalAmount, decimalPlaces: 2);
         _customSplits[userId] = equalAmount;
       }
 
       // Clear amounts for non-selected members
       for (String userId in widget.members.map((m) => m.id)) {
         if (!_selectedSplitBetween.contains(userId)) {
-          _customControllers[userId]?.text = '0.00';
+          _customControllers[userId]?.text = NumberFormatter.formatDecimal(0, decimalPlaces: 2);
           _customSplits[userId] = 0.0;
         }
       }
@@ -142,8 +152,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   }
 
   void _onCustomValueChanged(String userId, String value) {
-    double amount = double.tryParse(value) ?? 0.0;
-    _customSplits[userId] = amount;
+    double? amount = NumberFormatter.parseEuNumber(value);
+    _customSplits[userId] = amount ?? 0.0;
 
     // Update selected split between based on who has values > 0
     setState(() {
@@ -166,7 +176,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     if (_splitType == SplitType.percentage) {
       return 100.0 - _getTotalSplitAmount();
     } else {
-      double totalExpense = double.tryParse(_amountController.text) ?? 0;
+      double totalExpense = NumberFormatter.parseEuNumber(_amountController.text) ?? 0;
       return totalExpense - _getTotalSplitAmount();
     }
   }
@@ -176,7 +186,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       double totalPercentage = _getTotalSplitAmount();
       return (100.0 - totalPercentage).abs() < 0.1; // Allow small rounding
     } else {
-      double totalExpense = double.tryParse(_amountController.text) ?? 0;
+      double totalExpense = NumberFormatter.parseEuNumber(_amountController.text) ?? 0;
       double totalSplit = _getTotalSplitAmount();
       return (totalExpense - totalSplit).abs() < 0.01;
     }
@@ -213,9 +223,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       changes.add('Description: "${_originalExpense.description}" → "${_descriptionController.text.trim()}"');
     }
 
-    double newAmount = double.tryParse(_amountController.text) ?? 0;
+    double newAmount = NumberFormatter.parseEuNumber(_amountController.text) ?? 0;
     if (newAmount != _originalExpense.amount) {
-      changes.add('Amount: ${widget.group.currency} ${_originalExpense.amount.toStringAsFixed(2)} → ${widget.group.currency} ${newAmount.toStringAsFixed(2)}');
+      changes.add('Amount: ${NumberFormatter.formatCurrency(_originalExpense.amount, currencySymbol: widget.group.currency)} → ${NumberFormatter.formatCurrency(newAmount, currencySymbol: widget.group.currency)}');
     }
 
     if (_selectedPaidBy != _originalExpense.paidBy) {
@@ -229,7 +239,10 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     }
 
     if (_selectedDate != _originalExpense.date) {
-      changes.add('Date: ${_originalExpense.date.day}/${_originalExpense.date.month}/${_originalExpense.date.year} → ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}');
+      // Use EU date format
+      String oldDate = '${_originalExpense.date.day.toString().padLeft(2, '0')}/${_originalExpense.date.month.toString().padLeft(2, '0')}/${_originalExpense.date.year}';
+      String newDate = '${_selectedDate.day.toString().padLeft(2, '0')}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.year}';
+      changes.add('Date: $oldDate → $newDate');
     }
 
     if (_splitType != _originalExpense.splitType) {
@@ -263,7 +276,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
     return changes;
   }
-
   Future<void> _updateExpense() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedPaidBy == null) {
@@ -310,7 +322,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       // Create updated expense
       final updatedExpense = widget.expense.copyWith(
         description: _descriptionController.text.trim(),
-        amount: double.parse(_amountController.text),
+        amount: NumberFormatter.parseEuNumber(_amountController.text) ?? 0,
         paidBy: _selectedPaidBy!,
         splitBetween: _selectedSplitBetween,
         customSplits: customSplits,
@@ -436,11 +448,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               TextFormField(
                 controller: _amountController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  NumberFormatter.createEuNumberInputFormatter(allowDecimals: true),
+                ],
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   labelText: 'Amount *',
                   labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
-                  hintText: '0.00',
+                  hintText: '0,00', // Changed from '0.00' to '0,00'
                   hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
                   prefixIcon: Icon(Icons.euro, color: theme.primaryColor),
                   prefix: Text(
@@ -457,7 +472,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                   if (value == null || value.trim().isEmpty) {
                     return 'Please enter an amount';
                   }
-                  if (double.tryParse(value) == null || double.parse(value) <= 0) {
+
+                  double? parsedAmount = NumberFormatter.parseEuNumber(value);
+                  if (parsedAmount == null || parsedAmount <= 0) {
                     return 'Please enter a valid amount';
                   }
                   return null;
@@ -653,7 +670,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                           Text(
                             _splitType == SplitType.percentage
                                 ? '${_getTotalSplitAmount().toStringAsFixed(1)}%'
-                                : '${widget.group.currency} ${_getTotalSplitAmount().toStringAsFixed(2)}',
+                                : '${widget.group.currency} ${NumberFormatter.formatDecimal(_getTotalSplitAmount(), decimalPlaces: 2)}',
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -665,7 +682,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                           Text(
                             _splitType == SplitType.percentage
                                 ? '${_getRemainingAmount().toStringAsFixed(1)}%'
-                                : '${widget.group.currency} ${_getRemainingAmount().toStringAsFixed(2)}',
+                                : '${widget.group.currency} ${NumberFormatter.formatDecimal(_getRemainingAmount(), decimalPlaces: 2)}',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: _isValidSplit() ? Colors.green : Colors.red,
@@ -732,6 +749,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                           child: TextFormField(
                             controller: _customControllers[member.id],
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              NumberFormatter.createEuNumberInputFormatter(allowDecimals: true),
+                            ],
                             enabled: _splitType != SplitType.equal,
                             style: TextStyle(color: colorScheme.onSurface),
                             decoration: InputDecoration(

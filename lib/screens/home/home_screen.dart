@@ -9,6 +9,7 @@ import '../../services/theme_service.dart';
 import '../../models/group_model.dart';
 import '../../models/user_model.dart';
 import '../../models/friend_balance_model.dart';
+import '../../utils/number_formatter.dart';
 import '../groups/group_detail_screen.dart';
 import '../groups/groups_screen.dart';
 import '../home/settings_screen.dart';
@@ -134,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           double userBalance = groupBalances[_currentUserId] ?? 0.0;
 
           if (kDebugMode) {
-            print('🏠 Group "${group.name}": User balance = €${userBalance.toStringAsFixed(2)}');
+            print('🏠 Group "${group.name}": User balance = ${NumberFormatter.formatCurrency(userBalance)}');
           }
           totalBalance += userBalance;
         } catch (e) {
@@ -145,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       }
 
       if (kDebugMode) {
-        print('🏠 Total balance across all groups: €${totalBalance.toStringAsFixed(2)}');
+        print('🏠 Total balance across all groups: ${NumberFormatter.formatCurrency(totalBalance)}');
       }
 
       // Update cache
@@ -1015,8 +1016,8 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                   alignment: Alignment.centerLeft,
                                   child: Text(
                                     balanceSnapshot.hasData
-                                        ? '€${balanceSnapshot.data!.toStringAsFixed(2)}'
-                                        : '€0.00',
+                                        ? NumberFormatter.formatCurrency(balanceSnapshot.data!)
+                                        : NumberFormatter.formatCurrency(0),
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 20,

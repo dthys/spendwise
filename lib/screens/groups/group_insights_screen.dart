@@ -6,6 +6,7 @@ import '../../services/database_service.dart';
 import '../../models/group_model.dart';
 import '../../models/expense_model.dart';
 import '../../models/user_model.dart';
+import '../../utils/number_formatter.dart';
 
 // Group Insights Models
 class GroupInsight {
@@ -564,7 +565,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
   }
 
   String _formatCurrency(double amount) {
-    return '${widget.group.currency} ${amount.toStringAsFixed(2)}';
+    return NumberFormatter.formatCurrency(amount, currencySymbol: widget.group.currency);
   }
 
   Widget _buildSummaryCards() {

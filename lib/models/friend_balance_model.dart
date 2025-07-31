@@ -1,9 +1,6 @@
-// Create this as models/friend_balance_model.dart
-
-
 import 'package:flutter/material.dart';
-
 import 'user_model.dart';
+import '../utils/number_formatter.dart'; // Add this import
 
 class FriendBalance {
   final UserModel friend;
@@ -25,8 +22,8 @@ class FriendBalance {
 
   String get balanceText {
     if (isSettled) return 'Settled up';
-    if (friendOwesYou) return 'owes you €${balance.toStringAsFixed(2)}';
-    return 'you owe €${(-balance).toStringAsFixed(2)}';
+    if (friendOwesYou) return 'owes you ${NumberFormatter.formatCurrency(balance)}';
+    return 'you owe ${NumberFormatter.formatCurrency(-balance)}';
   }
 
   Color get balanceColor {
@@ -43,6 +40,6 @@ class FriendBalance {
 
   @override
   String toString() {
-    return 'FriendBalance(${friend.name}: €${balance.toStringAsFixed(2)}, ${sharedGroupsCount} groups)';
+    return 'FriendBalance(${friend.name}: ${NumberFormatter.formatCurrency(balance)}, ${sharedGroupsCount} groups)';
   }
 }

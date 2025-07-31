@@ -15,6 +15,7 @@
         "firebase_core",
         "firebase_messaging",
         "flutter",
+        "flutter_localizations",
         "flutter_secure_storage",
         "google_sign_in",
         "http",
@@ -164,7 +165,7 @@
     },
     {
       "name": "intl",
-      "version": "0.19.0",
+      "version": "0.20.2",
       "dependencies": [
         "clock",
         "meta",
@@ -337,6 +338,21 @@
       "name": "rxdart",
       "version": "0.27.7",
       "dependencies": []
+    },
+    {
+      "name": "flutter_localizations",
+      "version": "0.0.0",
+      "dependencies": [
+        "characters",
+        "clock",
+        "collection",
+        "flutter",
+        "intl",
+        "material_color_utilities",
+        "meta",
+        "path",
+        "vector_math"
+      ]
     },
     {
       "name": "flutter",

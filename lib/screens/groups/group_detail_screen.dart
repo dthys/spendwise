@@ -8,6 +8,7 @@ import '../../models/group_model.dart';
 import '../../models/expense_model.dart';
 import '../../models/user_model.dart';
 import '../../models/settlement_model.dart';
+import '../../utils/number_formatter.dart';
 import 'add_expense_screen.dart';
 import '../expenses/expense_detail_screen.dart';
 import '../expenses/activity_log_screen.dart';
@@ -119,7 +120,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
   }
 
   String _formatCurrency(double amount) {
-    return '${_group?.currency ?? 'EUR'} ${amount.toStringAsFixed(2)}';
+    return NumberFormatter.formatCurrency(amount, currencySymbol: _group?.currency ?? 'EUR');
   }
 
   // Check if an expense is fully settled

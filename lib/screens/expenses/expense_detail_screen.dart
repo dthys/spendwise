@@ -5,6 +5,7 @@ import '../../services/database_service.dart';
 import '../../models/expense_model.dart';
 import '../../models/group_model.dart';
 import '../../models/user_model.dart';
+import '../../utils/number_formatter.dart';
 import 'edit_expense_screen.dart';
 
 class ExpenseDetailScreen extends StatefulWidget {
@@ -28,7 +29,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
   bool _isDeleting = false;
 
   String _formatCurrency(double amount) {
-    return '${widget.group.currency} ${amount.toStringAsFixed(2)}';
+    return NumberFormatter.formatCurrency(amount, currencySymbol: widget.group.currency);
   }
 
   UserModel? _getUserById(String userId) {

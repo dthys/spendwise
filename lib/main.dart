@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // ADD THIS
+import 'package:intl/intl.dart'; // ADD THIS
 import 'package:spendwise/services/database_service.dart';
 import 'models/user_model.dart';
 import 'services/auth_service.dart';
@@ -20,6 +22,10 @@ import 'dialogs/update_dialog.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
+  // Set default locale for number formatting to EU format
+  Intl.defaultLocale = 'nl_NL'; // Dutch locale uses comma for decimals
+
   runApp(const MyApp());
 }
 
@@ -41,6 +47,23 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             title: 'Spendwise',
             debugShowCheckedModeBanner: false,
+
+            // ADD LOCALIZATION SUPPORT
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: const [
+              Locale('en', 'US'), // English (US)
+              Locale('nl', 'NL'), // Dutch (Netherlands) - uses EU formatting
+              Locale('de', 'DE'), // German (Germany) - uses EU formatting
+              Locale('fr', 'FR'), // French (France) - uses EU formatting
+              Locale('es', 'ES'), // Spanish (Spain) - uses EU formatting
+              Locale('it', 'IT'), // Italian (Italy) - uses EU formatting
+            ],
+            // Set default locale to Dutch for EU number formatting
+            locale: const Locale('nl', 'NL'),
 
             // Updated Theme Configuration
             theme: AppThemes.lightTheme,
@@ -76,6 +99,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// Rest of your code remains exactly the same...
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
