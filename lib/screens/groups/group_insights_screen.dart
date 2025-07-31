@@ -632,14 +632,25 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
         children: [
           Icon(icon, color: color, size: 24),
           const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
+          // Fixed: Added constraints and overflow handling for currency values
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 25), // Ensure consistent height
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
+          const SizedBox(height: 4),
           Text(
             title,
             style: TextStyle(
@@ -647,6 +658,8 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
               color: Colors.grey.shade600,
             ),
             textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
