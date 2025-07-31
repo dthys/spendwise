@@ -5,7 +5,7 @@ class LoadingSkeletons {
   // Skeleton for expense list items
   static Widget expenseListSkeleton() {
     return ListView.builder(
-      padding: EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: 6,
       itemBuilder: (context, index) => _ExpenseItemSkeleton(),
     );
@@ -14,7 +14,7 @@ class LoadingSkeletons {
   // Skeleton for group list items
   static Widget groupListSkeleton() {
     return ListView.builder(
-      padding: EdgeInsets.all(24),
+      padding: const EdgeInsets.all(24),
       itemCount: 4,
       itemBuilder: (context, index) => _GroupItemSkeleton(),
     );
@@ -28,7 +28,7 @@ class LoadingSkeletons {
   // Skeleton for activity log
   static Widget activityLogSkeleton() {
     return ListView.builder(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       itemCount: 8,
       itemBuilder: (context, index) => _ActivityItemSkeleton(),
     );
@@ -38,7 +38,7 @@ class LoadingSkeletons {
 class _ExpenseItemSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return const Card(
       margin: EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: _ShimmerBox(
@@ -81,7 +81,7 @@ class _ExpenseItemSkeleton extends StatelessWidget {
 class _GroupItemSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return const Card(
       margin: EdgeInsets.only(bottom: 12),
       child: ListTile(
         leading: _ShimmerBox(
@@ -119,12 +119,12 @@ class _BalanceCardSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).primaryColor.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: const Row(
         children: [
           _ShimmerBox(
             width: 24,
@@ -164,7 +164,7 @@ class _BalanceCardSkeleton extends StatelessWidget {
 class _ActivityItemSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return const Card(
       margin: EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: _ShimmerBox(
@@ -223,7 +223,7 @@ class _ShimmerBoxState extends State<_ShimmerBox>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
     _animation = Tween<double>(begin: -1.0, end: 2.0).animate(

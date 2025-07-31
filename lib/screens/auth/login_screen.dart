@@ -54,11 +54,11 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(height: 60),
+              const SizedBox(height: 60),
 
               // Logo & Title
               Center(
@@ -71,13 +71,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: Colors.blue.shade500,
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.account_balance_wallet,
                         color: Colors.white,
                         size: 40,
                       ),
                     ),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
                     Text(
                       'Spendwise',
                       style: TextStyle(
@@ -86,7 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: Colors.grey.shade800,
                       ),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
                       'Split expenses with friends',
                       style: TextStyle(
@@ -98,7 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              SizedBox(height: 48),
+              const SizedBox(height: 48),
 
               // Login Form
               Form(
@@ -114,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: Colors.grey.shade800,
                       ),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
                       'Sign in to your account',
                       style: TextStyle(
@@ -122,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: Colors.grey.shade600,
                       ),
                     ),
-                    SizedBox(height: 32),
+                    const SizedBox(height: 32),
 
                     // Email Field
                     TextFormField(
@@ -131,7 +131,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: InputDecoration(
                         labelText: 'Email',
                         hintText: 'Enter your email',
-                        prefixIcon: Icon(Icons.email_outlined),
+                        prefixIcon: const Icon(Icons.email_outlined),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -149,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                     ),
 
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
                     // Password Field
                     TextFormField(
@@ -158,7 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: InputDecoration(
                         labelText: 'Password',
                         hintText: 'Enter your password',
-                        prefixIcon: Icon(Icons.lock_outline),
+                        prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
@@ -186,7 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                     ),
 
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
                     // Sign In Button
                     Consumer<AuthService>(
@@ -196,14 +196,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue.shade500,
                             foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                             elevation: 0,
                           ),
                           child: authService.isLoading
-                              ? SizedBox(
+                              ? const SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(
@@ -211,7 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                              : Text(
+                              : const Text(
                             'Sign In',
                             style: TextStyle(
                               fontSize: 16,
@@ -222,14 +222,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                     ),
 
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
                     // Divider
                     Row(
                       children: [
                         Expanded(child: Divider(color: Colors.grey.shade300)),
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Text(
                             'or',
                             style: TextStyle(color: Colors.grey.shade600),
@@ -239,14 +239,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
 
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
                     // Google Sign In Button
                     Consumer<AuthService>(
                       builder: (context, authService, child) {
                         return OutlinedButton.icon(
                           onPressed: authService.isLoading ? null : _signInWithGoogle,
-                          icon: Icon(Icons.g_mobiledata, color: Colors.red),
+                          icon: const Icon(Icons.g_mobiledata, color: Colors.red),
                           label: Text(
                             'Continue with Google',
                             style: TextStyle(
@@ -256,7 +256,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
-                            padding: EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -266,7 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                     ),
 
-                    SizedBox(height: 32),
+                    const SizedBox(height: 32),
 
                     // Sign Up Link
                     Row(

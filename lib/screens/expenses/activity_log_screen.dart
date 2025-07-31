@@ -7,7 +7,7 @@ import '../../models/activity_log_model.dart';
 class ActivityLogScreen extends StatefulWidget {
   final String groupId;
 
-  const ActivityLogScreen({Key? key, required this.groupId}) : super(key: key);
+  const ActivityLogScreen({super.key, required this.groupId});
 
   @override
   _ActivityLogScreenState createState() => _ActivityLogScreenState();
@@ -30,7 +30,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
         );
 
         // Force a small delay to ensure the database update is processed
-        await Future.delayed(Duration(milliseconds: 100));
+        await Future.delayed(const Duration(milliseconds: 100));
 
         // Trigger a rebuild to update any parent widgets
         if (mounted) {
@@ -40,6 +40,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     });
   }
 
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -47,7 +48,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Activity Log'),
+        title: const Text('Activity Log'),
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: 0,
@@ -56,7 +57,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
         stream: _databaseService.streamGroupActivityLogs(widget.groupId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -69,7 +70,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                     size: 64,
                     color: colorScheme.onSurface.withOpacity(0.5),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Text(
                     'No activity yet',
                     style: TextStyle(
@@ -78,7 +79,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                     'Group activities will appear here',
                     textAlign: TextAlign.center,
@@ -94,20 +95,20 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
           List<ActivityLogModel> activities = snapshot.data!;
 
           return ListView.builder(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             itemCount: activities.length,
             itemBuilder: (context, index) {
               ActivityLogModel activity = activities[index];
 
               return Card(
-                margin: EdgeInsets.only(bottom: 8),
+                margin: const EdgeInsets.only(bottom: 8),
                 color: theme.cardColor,
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: _getActivityColor(activity.type),
                     child: Text(
                       activity.type.emoji,
-                      style: TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 16),
                     ),
                   ),
                   title: Text(
@@ -205,12 +206,12 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                   color: colorScheme.onSurface,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
                 'Time: ${activity.timestamp.day}/${activity.timestamp.month}/${activity.timestamp.year} ${activity.timestamp.hour}:${activity.timestamp.minute.toString().padLeft(2, '0')}',
                 style: TextStyle(color: colorScheme.onSurface),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 'Details:',
                 style: TextStyle(
@@ -218,11 +219,11 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                   color: colorScheme.onSurface,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               if (activity.type == ActivityType.expenseEdited && activity.metadata['changes'] != null) ...[
                 ...List<String>.from(activity.metadata['changes']).map((change) =>
                     Padding(
-                      padding: EdgeInsets.only(bottom: 4),
+                      padding: const EdgeInsets.only(bottom: 4),
                       child: Text(
                         '• $change',
                         style: TextStyle(color: colorScheme.onSurface),
@@ -243,7 +244,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
             onPressed: () {
               Navigator.pop(context, true); // Return true to indicate activities were seen
             },
-            child: Text('Close'),
+            child: const Text('Close'),
           ),
         ],
       ),

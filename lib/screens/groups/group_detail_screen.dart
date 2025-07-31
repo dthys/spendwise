@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
@@ -21,7 +21,7 @@ import 'package:rxdart/rxdart.dart';
 class GroupDetailScreen extends StatefulWidget {
   final String groupId;
 
-  const GroupDetailScreen({Key? key, required this.groupId}) : super(key: key);
+  const GroupDetailScreen({super.key, required this.groupId});
 
   @override
   _GroupDetailScreenState createState() => _GroupDetailScreenState();
@@ -37,7 +37,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
   // Cache for group data to prevent unnecessary reloads
   DateTime? _lastDataUpdate;
   Map<String, double>? _cachedBalances;
-  DateTime? _lastBalanceUpdate;
 
   // Add stream subscriptions for proper disposal
   StreamSubscription? _balanceSubscription;
@@ -71,7 +70,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
         _cachedBalances = await _databaseService.calculateGroupBalancesWithSettlements(widget.groupId);
         return _cachedBalances!;
       } catch (e) {
-        print('Error calculating balances: $e');
+        if (kDebugMode) {
+          print('Error calculating balances: $e');
+        }
         return _cachedBalances ?? <String, double>{};
       }
     });
@@ -108,7 +109,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('Error loading group: $e');
+      if (kDebugMode) {
+        print('Error loading group: $e');
+      }
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -165,7 +168,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
   // Add refresh functionality with smart caching
   Future<void> _refreshData() async {
     await _loadGroupData(forceRefresh: true);
-    await Future.delayed(Duration(milliseconds: 300)); // Reduced delay for better responsiveness
+    await Future.delayed(const Duration(milliseconds: 300)); // Reduced delay for better responsiveness
   }
 
   // Create smooth page transitions
@@ -174,11 +177,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => page,
-        transitionDuration: Duration(milliseconds: 250),
+        transitionDuration: const Duration(milliseconds: 250),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: animation.drive(
-              Tween(begin: Offset(1.0, 0.0), end: Offset.zero).chain(
+              Tween(begin: const Offset(1.0, 0.0), end: Offset.zero).chain(
                 CurveTween(curve: Curves.easeInOut),
               ),
             ),
@@ -208,11 +211,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
       return Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          title: Text('Loading...'),
+          title: const Text('Loading...'),
           backgroundColor: theme.appBarTheme.backgroundColor,
           foregroundColor: theme.appBarTheme.foregroundColor,
         ),
-        body: Center(child: CircularProgressIndicator()),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -220,7 +223,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
       return Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          title: Text('Group Not Found'),
+          title: const Text('Group Not Found'),
           backgroundColor: theme.appBarTheme.backgroundColor,
           foregroundColor: theme.appBarTheme.foregroundColor,
         ),
@@ -233,7 +236,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                 size: 64,
                 color: colorScheme.onSurface.withOpacity(0.5),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 'Group not found',
                 style: TextStyle(
@@ -241,10 +244,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                   color: colorScheme.onSurface,
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, 'refresh'),
-                child: Text('Go Back'),
+                child: const Text('Go Back'),
               ),
             ],
           ),
@@ -261,7 +264,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.group),
+            icon: const Icon(Icons.group),
             onPressed: () {
               showDialog(
                 context: context,
@@ -281,24 +284,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
               return IconButton(
                 icon: Stack(
                   children: [
-                    Icon(Icons.history),
+                    const Icon(Icons.history),
                     if (unreadCount > 0)
                       Positioned(
                         right: 0,
                         top: 0,
                         child: Container(
-                          padding: EdgeInsets.all(2),
+                          padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
                             color: Colors.red,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          constraints: BoxConstraints(
+                          constraints: const BoxConstraints(
                             minWidth: 12,
                             minHeight: 12,
                           ),
                           child: Text(
                             unreadCount > 9 ? '9+' : unreadCount.toString(),
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 8,
                               fontWeight: FontWeight.bold,
@@ -327,7 +330,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
             },
           ),
           IconButton(
-            icon: Icon(Icons.more_vert),
+            icon: const Icon(Icons.more_vert),
             onPressed: () {
               _showGroupOptions(context);
             },
@@ -343,12 +346,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
               width: double.infinity,
               decoration: BoxDecoration(
                 color: theme.primaryColor,
-                borderRadius: BorderRadius.only(
+                borderRadius: const BorderRadius.only(
                   bottomLeft: Radius.circular(20),
                   bottomRight: Radius.circular(20),
                 ),
               ),
-              padding: EdgeInsets.fromLTRB(24, 0, 24, 24),
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -361,7 +364,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                         fontSize: 16,
                       ),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                   ],
 
                   // Group Balance - StreamBuilder with cached initial data
@@ -381,8 +384,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                           : 0.0;
 
                       return AnimatedContainer(
-                        duration: Duration(milliseconds: 300),
-                        padding: EdgeInsets.all(16),
+                        duration: const Duration(milliseconds: 300),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: colorScheme.onPrimary.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
@@ -395,7 +398,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                                   : Icons.trending_down,
                               color: colorScheme.onPrimary,
                             ),
-                            SizedBox(width: 12),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -408,7 +411,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                                     ),
                                   ),
                                   AnimatedDefaultTextStyle(
-                                    duration: Duration(milliseconds: 300),
+                                    duration: const Duration(milliseconds: 300),
                                     style: TextStyle(
                                       color: colorScheme.onPrimary,
                                       fontSize: 20,
@@ -436,11 +439,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
 
                                 // Only show insights button if there are expenses
                                 if (expenses.isEmpty) {
-                                  return SizedBox.shrink();
+                                  return const SizedBox.shrink();
                                 }
 
                                 return Container(
-                                  margin: EdgeInsets.only(left: 8),
+                                  margin: const EdgeInsets.only(left: 8),
                                   child: IconButton(
                                     onPressed: () {
                                       _navigateWithTransition(GroupInsightsScreen(
@@ -454,7 +457,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                                     ),
                                     style: IconButton.styleFrom(
                                       backgroundColor: colorScheme.onPrimary.withOpacity(0.2),
-                                      padding: EdgeInsets.all(8),
+                                      padding: const EdgeInsets.all(8),
                                     ),
                                     tooltip: 'Group Insights',
                                   ),
@@ -467,10 +470,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                     },
                   ),
 
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // Quick access to balances
-                  Container(
+                  SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () async {
@@ -484,13 +487,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colorScheme.onPrimary.withOpacity(0.2),
                         foregroundColor: colorScheme.onPrimary,
-                        padding: EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      icon: Icon(Icons.account_balance),
-                      label: Text('View All Balances'),
+                      icon: const Icon(Icons.account_balance),
+                      label: const Text('View All Balances'),
                     ),
                   ),
                 ],
@@ -499,11 +502,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
 
             // Members Count and Add Expense
             Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
                   Icon(Icons.group, color: colorScheme.onSurface.withOpacity(0.6)),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Text(
                     '${_members.length} members',
                     style: TextStyle(
@@ -511,7 +514,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                       fontSize: 14,
                     ),
                   ),
-                  Spacer(),
+                  const Spacer(),
                   TextButton.icon(
                     onPressed: () {
                       _navigateWithTransition(AddExpenseScreen(
@@ -519,8 +522,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                         members: _members,
                       ));
                     },
-                    icon: Icon(Icons.add),
-                    label: Text('Add Expense'),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Expense'),
                   ),
                 ],
               ),
@@ -541,11 +544,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                 }
 
                 if (settledExpensesCount == 0) {
-                  return SizedBox.shrink();
+                  return const SizedBox.shrink();
                 }
 
                 return Container(
-                  margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Row(
                     children: [
                       Icon(
@@ -553,7 +556,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                         color: colorScheme.onSurface.withOpacity(0.6),
                         size: 20,
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _showSettledExpenses
@@ -577,11 +580,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                         ),
                         label: Text(
                           _showSettledExpenses ? 'Hide settled' : 'Show settled',
-                          style: TextStyle(fontSize: 14),
+                          style: const TextStyle(fontSize: 14),
                         ),
                         style: TextButton.styleFrom(
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          minimumSize: Size(0, 0),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: const Size(0, 0),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                       ),
@@ -623,8 +626,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                   }
 
                   return ListView.builder(
-                    physics: AlwaysScrollableScrollPhysics(),
-                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: filteredExpenses.length,
                     itemBuilder: (context, index) {
                       return _buildExpenseItem(filteredExpenses[index], settlements);
@@ -657,8 +660,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
     final colorScheme = theme.colorScheme;
 
     return SingleChildScrollView(
-      physics: AlwaysScrollableScrollPhysics(),
-      child: Container(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: SizedBox(
         height: MediaQuery.of(context).size.height * 0.4,
         child: Center(
           child: Column(
@@ -669,7 +672,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                 size: 64,
                 color: colorScheme.onSurface.withOpacity(0.4),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 'No expenses yet',
                 style: TextStyle(
@@ -678,7 +681,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
                 'Add your first expense to start splitting!',
                 textAlign: TextAlign.center,
@@ -686,7 +689,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                   color: colorScheme.onSurface.withOpacity(0.7),
                 ),
               ),
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: () {
                   _navigateWithTransition(AddExpenseScreen(
@@ -694,8 +697,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                     members: _members,
                   ));
                 },
-                icon: Icon(Icons.add),
-                label: Text('Add Expense'),
+                icon: const Icon(Icons.add),
+                label: const Text('Add Expense'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.primaryColor,
                   foregroundColor: colorScheme.onPrimary,
@@ -713,8 +716,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
     final colorScheme = theme.colorScheme;
 
     return SingleChildScrollView(
-      physics: AlwaysScrollableScrollPhysics(),
-      child: Container(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: SizedBox(
         height: MediaQuery.of(context).size.height * 0.4,
         child: Center(
           child: Column(
@@ -725,7 +728,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                 size: 64,
                 color: Colors.green.shade500,
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 'All expenses settled!',
                 style: TextStyle(
@@ -734,7 +737,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
                 'All current expenses have been settled.',
                 textAlign: TextAlign.center,
@@ -742,14 +745,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                   color: colorScheme.onSurface.withOpacity(0.7),
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               TextButton(
                 onPressed: () {
                   setState(() {
                     _showSettledExpenses = true;
                   });
                 },
-                child: Text('Show settled expenses'),
+                child: const Text('Show settled expenses'),
               ),
             ],
           ),
@@ -776,12 +779,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
     bool isSettled = _isExpenseFullySettled(expense, settlements);
 
     return AnimatedContainer(
-      duration: Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
       child: Hero(
         tag: 'expense_${expense.id}',
         child: Card(
-          margin: EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(bottom: 8),
           color: theme.cardColor,
           child: ListTile(
             leading: Stack(
@@ -805,12 +808,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                     right: -2,
                     bottom: -2,
                     child: Container(
-                      padding: EdgeInsets.all(2),
+                      padding: const EdgeInsets.all(2),
                       decoration: BoxDecoration(
                         color: Colors.green.shade500,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.check,
                         color: Colors.white,
                         size: 12,
@@ -848,9 +851,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                       ),
                     ),
                     if (isSettled) ...[
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: Colors.green.shade100,
                           borderRadius: BorderRadius.circular(8),
@@ -907,12 +910,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
   // Loading skeleton for balance card
   Widget _buildBalanceSkeleton() {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: const Row(
         children: [
           ShimmerBox(width: 24, height: 24, borderRadius: 4),
           SizedBox(width: 12),
@@ -936,9 +939,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
   // Loading skeleton for expense list
   Widget _buildExpenseListSkeleton() {
     return ListView.builder(
-      padding: EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: 6,
-      itemBuilder: (context, index) => Card(
+      itemBuilder: (context, index) => const Card(
         margin: EdgeInsets.only(bottom: 8),
         child: ListTile(
           leading: ShimmerBox(width: 40, height: 40, borderRadius: 20),
@@ -968,7 +971,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
         'Group Members',
         style: TextStyle(color: colorScheme.onSurface),
       ),
-      content: Container(
+      content: SizedBox(
         width: double.maxFinite,
         child: ListView.builder(
           shrinkWrap: true,
@@ -976,7 +979,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
           itemBuilder: (context, index) {
             UserModel member = _members[index];
             return AnimatedContainer(
-              duration: Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 200),
               child: ListTile(
                 leading: CircleAvatar(
                   backgroundColor: theme.primaryColor,
@@ -1001,7 +1004,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('Close'),
+          child: const Text('Close'),
         ),
       ],
     );
@@ -1014,12 +1017,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
     showModalBottomSheet(
       context: context,
       backgroundColor: theme.bottomSheetTheme.backgroundColor,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => AnimatedContainer(
-        duration: Duration(milliseconds: 300),
-        padding: EdgeInsets.symmetric(vertical: 20),
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(vertical: 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -1,13 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:uuid/uuid.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../models/group_model.dart';
 import '../../models/user_model.dart';
 
 class GroupsScreen extends StatefulWidget {
+  const GroupsScreen({super.key});
+
   @override
   _GroupsScreenState createState() => _GroupsScreenState();
 }
@@ -19,7 +21,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
   final _groupDescriptionController = TextEditingController();
   final _memberEmailController = TextEditingController();
 
-  List<UserModel> _selectedMembers = [];
+  final List<UserModel> _selectedMembers = [];
   bool _isLoading = false;
   String _selectedCurrency = 'EUR';
 
@@ -34,58 +36,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
   }
 
   // Voeg toe in _GroupsScreenState class
-  Future<void> _migrateAuthUsersToFirestore() async {
-    try {
-      print('=== MIGRATING USERS TO FIRESTORE ===');
-
-      // Voor nu maken we handmatig een user document voor de ingelogde user
-      final authService = Provider.of<AuthService>(context, listen: false);
-      if (authService.currentUser != null) {
-        final user = authService.currentUser!;
-
-        // Check of user al bestaat
-        DocumentSnapshot existingUser = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
-
-        if (!existingUser.exists) {
-          // Maak user document aan
-          final userModel = UserModel.fromFirebaseUser(
-            user.uid,
-            user.displayName ?? 'User',
-            user.email ?? '',
-            user.photoURL,
-          );
-
-          await _databaseService.createUser(userModel);
-          print('Created user: ${user.email}');
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('User migrated to database!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('User already exists in database'),
-              backgroundColor: Colors.blue,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print('Migration error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Migration failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
 
   Future<void> _addMemberByEmail() async {
     if (_memberEmailController.text.trim().isEmpty) return;
@@ -94,32 +44,53 @@ class _GroupsScreenState extends State<GroupsScreen> {
       setState(() => _isLoading = true);
 
       String searchEmail = _memberEmailController.text.trim();
-      print('=== SEARCHING FOR USER ===');
-      print('Search email: "$searchEmail"');
+      if (kDebugMode) {
+        print('=== SEARCHING FOR USER ===');
+      }
+      if (kDebugMode) {
+        print('Search email: "$searchEmail"');
+      }
 
-      print('=== FIRESTORE DEBUG ===');
-      print('Project ID: ${FirebaseFirestore.instance.app.options.projectId}');
-      print('Checking collection: users');
+      if (kDebugMode) {
+        print('=== FIRESTORE DEBUG ===');
+      }
+      if (kDebugMode) {
+        print('Project ID: ${FirebaseFirestore.instance.app.options.projectId}');
+      }
+      if (kDebugMode) {
+        print('Checking collection: users');
+      }
 
       var snapshot = await FirebaseFirestore.instance.collection('users').get();
-      print('Documents found in users collection: ${snapshot.docs.length}');
+      if (kDebugMode) {
+        print('Documents found in users collection: ${snapshot.docs.length}');
+      }
 
       for (var doc in snapshot.docs) {
-        print('Doc ID: ${doc.id}');
-        print('Doc data: ${doc.data()}');
+        if (kDebugMode) {
+          print('Doc ID: ${doc.id}');
+        }
+        if (kDebugMode) {
+          print('Doc data: ${doc.data()}');
+        }
       }
 
 // Check if collection exists at all
-      var collections = await FirebaseFirestore.instance.collection('test').doc('test').collection('users').get();
-      print('Alternative check completed');
+      if (kDebugMode) {
+        print('Alternative check completed');
+      }
 
       List<UserModel> users = await _databaseService.searchUsersByEmail(searchEmail);
 
-      print('Search returned ${users.length} users');
+      if (kDebugMode) {
+        print('Search returned ${users.length} users');
+      }
 
       if (users.isNotEmpty) {
         UserModel user = users.first;
-        print('Found user: ${user.name} (${user.email})');
+        if (kDebugMode) {
+          print('Found user: ${user.name} (${user.email})');
+        }
 
         // Check if user is already added
         if (!_selectedMembers.any((member) => member.id == user.id)) {
@@ -136,32 +107,40 @@ class _GroupsScreenState extends State<GroupsScreen> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('User already added to group'),
               backgroundColor: Colors.orange,
             ),
           );
         }
       } else {
-        print('No users found for email: $searchEmail');
+        if (kDebugMode) {
+          print('No users found for email: $searchEmail');
+        }
 
         // Check what emails actually exist in Firestore
-        print('=== CHECKING ALL EMAILS IN FIRESTORE ===');
+        if (kDebugMode) {
+          print('=== CHECKING ALL EMAILS IN FIRESTORE ===');
+        }
         var allUsers = await FirebaseFirestore.instance.collection('users').get();
         for (var doc in allUsers.docs) {
           var data = doc.data();
-          print('Firestore user: ${data['email']} (name: ${data['name']})');
+          if (kDebugMode) {
+            print('Firestore user: ${data['email']} (name: ${data['name']})');
+          }
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('No user found with this email'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
-      print('Error searching for user: $e');
+      if (kDebugMode) {
+        print('Error searching for user: $e');
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error searching for user: $e'),
@@ -224,25 +203,39 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
   Future<void> _debugCheckUsers() async {
     try {
-      print('=== DEBUG: Checking current user ===');
+      if (kDebugMode) {
+        print('=== DEBUG: Checking current user ===');
+      }
       final authService = Provider.of<AuthService>(context, listen: false);
       if (authService.currentUser != null) {
-        print('Current auth user: ${authService.currentUser!.email}');
+        if (kDebugMode) {
+          print('Current auth user: ${authService.currentUser!.email}');
+        }
 
         UserModel? currentUser = await _databaseService.getUser(authService.currentUser!.uid);
-        print('Current user in Firestore: $currentUser');
+        if (kDebugMode) {
+          print('Current user in Firestore: $currentUser');
+        }
       }
 
-      print('=== DEBUG: Checking all users in Firestore ===');
+      if (kDebugMode) {
+        print('=== DEBUG: Checking all users in Firestore ===');
+      }
       // Let's get all users to see what's in Firestore
       var allUsers = await FirebaseFirestore.instance.collection('users').get();
-      print('Total users in Firestore: ${allUsers.docs.length}');
+      if (kDebugMode) {
+        print('Total users in Firestore: ${allUsers.docs.length}');
+      }
 
       for (var doc in allUsers.docs) {
-        print('User doc: ${doc.data()}');
+        if (kDebugMode) {
+          print('User doc: ${doc.data()}');
+        }
       }
     } catch (e) {
-      print('Debug error: $e');
+      if (kDebugMode) {
+        print('Debug error: $e');
+      }
     }
   }
 
@@ -251,19 +244,19 @@ class _GroupsScreenState extends State<GroupsScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Create Group'),
+        title: const Text('Create Group'),
         backgroundColor: Colors.blue.shade500,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.bug_report),
+            icon: const Icon(Icons.bug_report),
             onPressed: _debugCheckUsers,
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Form(
           key: _formKey,
           child: Column(
@@ -278,7 +271,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                   color: Colors.grey.shade800,
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Group Name
               TextFormField(
@@ -286,7 +279,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 decoration: InputDecoration(
                   labelText: 'Group Name *',
                   hintText: 'e.g., Weekend Trip, Shared Apartment',
-                  prefixIcon: Icon(Icons.group),
+                  prefixIcon: const Icon(Icons.group),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -301,7 +294,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 },
               ),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Group Description
               TextFormField(
@@ -310,7 +303,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 decoration: InputDecoration(
                   labelText: 'Description (Optional)',
                   hintText: 'What is this group for?',
-                  prefixIcon: Icon(Icons.description),
+                  prefixIcon: const Icon(Icons.description),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -319,14 +312,14 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 ),
               ),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Currency Selection
               DropdownButtonFormField<String>(
                 value: _selectedCurrency,
                 decoration: InputDecoration(
                   labelText: 'Currency',
-                  prefixIcon: Icon(Icons.currency_exchange),
+                  prefixIcon: const Icon(Icons.currency_exchange),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -346,7 +339,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 },
               ),
 
-              SizedBox(height: 32),
+              const SizedBox(height: 32),
 
               // Add Members Section
               Text(
@@ -357,14 +350,14 @@ class _GroupsScreenState extends State<GroupsScreen> {
                   color: Colors.grey.shade800,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
                 'Add friends by their email address',
                 style: TextStyle(
                   color: Colors.grey.shade600,
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Add Member Input
               Row(
@@ -376,7 +369,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                       decoration: InputDecoration(
                         labelText: 'Friend\'s Email',
                         hintText: 'Enter email address',
-                        prefixIcon: Icon(Icons.email),
+                        prefixIcon: const Icon(Icons.email),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -385,19 +378,19 @@ class _GroupsScreenState extends State<GroupsScreen> {
                       ),
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   ElevatedButton(
                     onPressed: _isLoading ? null : _addMemberByEmail,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue.shade500,
                       foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     child: _isLoading
-                        ? SizedBox(
+                        ? const SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
@@ -405,12 +398,12 @@ class _GroupsScreenState extends State<GroupsScreen> {
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                        : Icon(Icons.add),
+                        : const Icon(Icons.add),
                   ),
                 ],
               ),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Selected Members List
               if (_selectedMembers.isNotEmpty) ...[
@@ -422,20 +415,20 @@ class _GroupsScreenState extends State<GroupsScreen> {
                     color: Colors.grey.shade700,
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 ...(_selectedMembers.map((member) => Card(
                   child: ListTile(
                     leading: CircleAvatar(
                       backgroundColor: Colors.blue.shade500,
                       child: Text(
                         member.name.substring(0, 1).toUpperCase(),
-                        style: TextStyle(color: Colors.white),
+                        style: const TextStyle(color: Colors.white),
                       ),
                     ),
                     title: Text(member.name),
                     subtitle: Text(member.email),
                     trailing: IconButton(
-                      icon: Icon(Icons.remove_circle, color: Colors.red),
+                      icon: const Icon(Icons.remove_circle, color: Colors.red),
                       onPressed: () {
                         setState(() {
                           _selectedMembers.remove(member);
@@ -443,13 +436,13 @@ class _GroupsScreenState extends State<GroupsScreen> {
                       },
                     ),
                   ),
-                ))).toList(),
-                SizedBox(height: 16),
+                ))),
+                const SizedBox(height: 16),
               ],
 
               // Info Card
               Container(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.blue.shade50,
                   borderRadius: BorderRadius.circular(12),
@@ -458,7 +451,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 child: Row(
                   children: [
                     Icon(Icons.info, color: Colors.blue.shade600),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'You can add more members later. Only registered Spendwise users can be added.',
@@ -471,7 +464,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 ),
               ),
 
-              SizedBox(height: 32),
+              const SizedBox(height: 32),
 
               // Create Button
               SizedBox(
@@ -481,14 +474,14 @@ class _GroupsScreenState extends State<GroupsScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue.shade500,
                     foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     elevation: 0,
                   ),
                   child: _isLoading
-                      ? SizedBox(
+                      ? const SizedBox(
                     height: 20,
                     width: 20,
                     child: CircularProgressIndicator(
@@ -496,7 +489,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
-                      : Text(
+                      : const Text(
                     'Create Group',
                     style: TextStyle(
                       fontSize: 16,

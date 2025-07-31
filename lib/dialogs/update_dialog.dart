@@ -15,8 +15,8 @@ class UpdateDialog {
         title: Row(
           children: [
             Icon(Icons.system_update, color: Colors.blue.shade500),
-            SizedBox(width: 8),
-            Text('Update Available'),
+            const SizedBox(width: 8),
+            const Text('Update Available'),
           ],
         ),
         content: Column(
@@ -24,7 +24,7 @@ class UpdateDialog {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.blue.shade50,
                 borderRadius: BorderRadius.circular(8),
@@ -33,7 +33,7 @@ class UpdateDialog {
               child: Row(
                 children: [
                   Icon(Icons.new_releases, color: Colors.blue.shade600, size: 20),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Version ${updateService.latestVersion} is now available!',
@@ -47,20 +47,20 @@ class UpdateDialog {
                 ],
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               'Current version: ${updateService.currentVersion}',
               style: TextStyle(color: Colors.grey.shade600),
             ),
             if (updateService.releaseNotes != null) ...[
-              SizedBox(height: 12),
-              Text(
+              const SizedBox(height: 12),
+              const Text(
                 'What\'s new:',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
-              SizedBox(height: 4),
+              const SizedBox(height: 4),
               Container(
-                constraints: BoxConstraints(maxHeight: 150),
+                constraints: const BoxConstraints(maxHeight: 150),
                 child: SingleChildScrollView(
                   child: Text(
                     updateService.releaseNotes!,
@@ -72,9 +72,9 @@ class UpdateDialog {
                 ),
               ),
             ],
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.orange.shade50,
                 borderRadius: BorderRadius.circular(8),
@@ -83,7 +83,7 @@ class UpdateDialog {
               child: Row(
                 children: [
                   Icon(Icons.info_outline, color: Colors.orange.shade600, size: 20),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'The app will close during installation. You may need to enable "Install from unknown sources" in your device settings.',
@@ -98,14 +98,14 @@ class UpdateDialog {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Later'),
+            child: const Text('Later'),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _showDownloadDialog(context, updateService);
             },
-            child: Text('Update Now'),
+            child: const Text('Update Now'),
           ),
         ],
       ),
@@ -139,20 +139,20 @@ class UpdateDialog {
           title: Row(
             children: [
               Icon(Icons.check_circle, color: Colors.green.shade500),
-              SizedBox(width: 8),
-              Text('Up to Date'),
+              const SizedBox(width: 8),
+              const Text('Up to Date'),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.check_circle_outline, size: 64, color: Colors.green.shade500),
-              SizedBox(height: 16),
-              Text(
+              const SizedBox(height: 16),
+              const Text(
                 'You\'re running the latest version of Spendwise!',
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
                 'Version ${updateService.currentVersion}',
                 style: TextStyle(
@@ -165,7 +165,7 @@ class UpdateDialog {
           actions: [
             ElevatedButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Great!'),
+              child: const Text('Great!'),
             ),
           ],
         ),
@@ -198,7 +198,7 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
         // Download successful, installation intent launched
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Update downloaded! Please follow the installation prompts.'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 4),
@@ -208,7 +208,7 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
         // Download failed
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Failed to download update. Please try again.'),
             backgroundColor: Colors.red,
           ),
@@ -225,8 +225,8 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
           title: Row(
             children: [
               Icon(Icons.download, color: Colors.blue.shade500),
-              SizedBox(width: 8),
-              Text('Downloading...'),
+              const SizedBox(width: 8),
+              const Text('Downloading...'),
             ],
           ),
           content: Column(
@@ -235,23 +235,23 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
               CircularProgressIndicator(
                 value: updateService.downloadProgress > 0 ? updateService.downloadProgress : null,
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 updateService.downloadProgress > 0
                     ? 'Downloading... ${(updateService.downloadProgress * 100).toInt()}%'
                     : 'Preparing download...',
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               if (updateService.downloadProgress > 0)
                 LinearProgressIndicator(
                   value: updateService.downloadProgress,
                   backgroundColor: Colors.grey.shade300,
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade500),
                 ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Container(
-                padding: EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.blue.shade50,
                   borderRadius: BorderRadius.circular(8),
@@ -259,7 +259,7 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
                 child: Row(
                   children: [
                     Icon(Icons.info_outline, color: Colors.blue.shade600, size: 20),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Please don\'t close the app during download.',

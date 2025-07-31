@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/update_service.dart';
 import 'update_dialog.dart';
@@ -20,7 +21,7 @@ class StartupUpdateDialog {
         _hasShownThisSession = true;
 
         // Add a small delay to ensure UI is fully settled
-        await Future.delayed(Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 500));
 
         if (context.mounted) {
           // Show startup update dialog with smooth animation
@@ -28,7 +29,9 @@ class StartupUpdateDialog {
         }
       }
     } catch (e) {
-      print('Startup update check failed: $e');
+      if (kDebugMode) {
+        print('Startup update check failed: $e');
+      }
     }
   }
 
@@ -45,7 +48,7 @@ class StartupUpdateDialog {
       barrierDismissible: false,
       barrierLabel: 'Update Available',
       barrierColor: Colors.black54,
-      transitionDuration: Duration(milliseconds: 300),
+      transitionDuration: const Duration(milliseconds: 300),
       pageBuilder: (context, animation, secondaryAnimation) {
         return ScaleTransition(
           scale: CurvedAnimation(
@@ -59,7 +62,7 @@ class StartupUpdateDialog {
             title: Row(
               children: [
                 Container(
-                  padding: EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.blue.shade100,
                     borderRadius: BorderRadius.circular(8),
@@ -70,8 +73,8 @@ class StartupUpdateDialog {
                     size: 24,
                   ),
                 ),
-                SizedBox(width: 12),
-                Expanded(
+                const SizedBox(width: 12),
+                const Expanded(
                   child: Text(
                     'Update Available',
                     style: TextStyle(
@@ -88,7 +91,7 @@ class StartupUpdateDialog {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.green.shade50,
                       borderRadius: BorderRadius.circular(12),
@@ -97,7 +100,7 @@ class StartupUpdateDialog {
                     child: Row(
                       children: [
                         Icon(Icons.new_releases, color: Colors.green.shade600),
-                        SizedBox(width: 12),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,7 +128,7 @@ class StartupUpdateDialog {
                   ),
 
                   if (updateService.releaseNotes != null && updateService.releaseNotes!.isNotEmpty) ...[
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Text(
                       'What\'s New:',
                       style: TextStyle(
@@ -134,10 +137,10 @@ class StartupUpdateDialog {
                         color: Colors.grey.shade800,
                       ),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Container(
-                      constraints: BoxConstraints(maxHeight: 120),
-                      padding: EdgeInsets.all(12),
+                      constraints: const BoxConstraints(maxHeight: 120),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade50,
                         borderRadius: BorderRadius.circular(8),
@@ -156,9 +159,9 @@ class StartupUpdateDialog {
                     ),
                   ],
 
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Container(
-                    padding: EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.blue.shade50,
                       borderRadius: BorderRadius.circular(8),
@@ -167,7 +170,7 @@ class StartupUpdateDialog {
                     child: Row(
                       children: [
                         Icon(Icons.recommend, color: Colors.blue.shade600, size: 20),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'We recommend updating to get the latest features, bug fixes, and security improvements.',
@@ -192,14 +195,14 @@ class StartupUpdateDialog {
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.grey.shade600,
                 ),
-                child: Text('Maybe Later'),
+                child: const Text('Maybe Later'),
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: () async {
                   Navigator.of(context).pop();
                   // Small delay to prevent flash
-                  await Future.delayed(Duration(milliseconds: 100));
+                  await Future.delayed(const Duration(milliseconds: 100));
                   if (context.mounted) {
                     await UpdateDialog.showUpdateCheckDialog(
                       context,
@@ -208,19 +211,19 @@ class StartupUpdateDialog {
                     );
                   }
                 },
-                icon: Icon(Icons.download, size: 18),
-                label: Text('Update Now'),
+                icon: const Icon(Icons.download, size: 18),
+                label: const Text('Update Now'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue.shade600,
                   foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
               ),
             ],
-            actionsPadding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           ),
         );
       },

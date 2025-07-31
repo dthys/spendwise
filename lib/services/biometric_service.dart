@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
@@ -26,27 +27,39 @@ class BiometricService extends ChangeNotifier {
 
   Future<void> _initializeBiometric() async {
     try {
-      print('🔍 Initializing biometric authentication...');
+      if (kDebugMode) {
+        print('🔍 Initializing biometric authentication...');
+      }
 
       // Check if device supports biometric
       _isDeviceSupported = await _localAuth.isDeviceSupported();
-      print('📱 Device supported: $_isDeviceSupported');
+      if (kDebugMode) {
+        print('📱 Device supported: $_isDeviceSupported');
+      }
 
       if (!_isDeviceSupported) {
-        print('❌ Device does not support biometric authentication');
+        if (kDebugMode) {
+          print('❌ Device does not support biometric authentication');
+        }
         notifyListeners();
         return;
       }
 
       // Check if biometric is available (hardware + enrolled)
       _isBiometricAvailable = await _localAuth.canCheckBiometrics;
-      print('🔐 Can check biometrics: $_isBiometricAvailable');
+      if (kDebugMode) {
+        print('🔐 Can check biometrics: $_isBiometricAvailable');
+      }
 
       if (_isBiometricAvailable) {
         _availableBiometrics = await _localAuth.getAvailableBiometrics();
-        print('📋 Available biometrics: $_availableBiometrics');
+        if (kDebugMode) {
+          print('📋 Available biometrics: $_availableBiometrics');
+        }
       } else {
-        print('⚠️ Biometric not available - checking why...');
+        if (kDebugMode) {
+          print('⚠️ Biometric not available - checking why...');
+        }
 
         // Try to get more specific info
         try {
@@ -58,11 +71,17 @@ class BiometricService extends ChangeNotifier {
             ),
           );
         } catch (e) {
-          print('🔍 Biometric test error: $e');
+          if (kDebugMode) {
+            print('🔍 Biometric test error: $e');
+          }
           if (e.toString().contains('NotEnrolled')) {
-            print('👆 No biometrics enrolled on device');
+            if (kDebugMode) {
+              print('👆 No biometrics enrolled on device');
+            }
           } else if (e.toString().contains('NotAvailable')) {
-            print('📱 Biometric hardware not available');
+            if (kDebugMode) {
+              print('📱 Biometric hardware not available');
+            }
           }
         }
       }
@@ -71,15 +90,27 @@ class BiometricService extends ChangeNotifier {
       String? enabled = await _secureStorage.read(key: _biometricEnabledKey);
       _isBiometricEnabled = enabled == 'true' && _isBiometricAvailable;
 
-      print('✅ Biometric initialization complete:');
-      print('   - Device supported: $_isDeviceSupported');
-      print('   - Available: $_isBiometricAvailable');
-      print('   - User enabled: $_isBiometricEnabled');
-      print('   - Types: $_availableBiometrics');
+      if (kDebugMode) {
+        print('✅ Biometric initialization complete:');
+      }
+      if (kDebugMode) {
+        print('   - Device supported: $_isDeviceSupported');
+      }
+      if (kDebugMode) {
+        print('   - Available: $_isBiometricAvailable');
+      }
+      if (kDebugMode) {
+        print('   - User enabled: $_isBiometricEnabled');
+      }
+      if (kDebugMode) {
+        print('   - Types: $_availableBiometrics');
+      }
 
       notifyListeners();
     } catch (e) {
-      print('❌ Error initializing biometric: $e');
+      if (kDebugMode) {
+        print('❌ Error initializing biometric: $e');
+      }
       _isBiometricAvailable = false;
       _isDeviceSupported = false;
       notifyListeners();
@@ -136,10 +167,14 @@ class BiometricService extends ChangeNotifier {
     bool biometricOnly = false,
   }) async {
     try {
-      print('🔐 Attempting biometric authentication...');
+      if (kDebugMode) {
+        print('🔐 Attempting biometric authentication...');
+      }
 
       if (!_isDeviceSupported) {
-        print('❌ Device not supported');
+        if (kDebugMode) {
+          print('❌ Device not supported');
+        }
         throw PlatformException(
           code: 'NotSupported',
           message: 'Biometric authentication is not supported on this device',
@@ -147,7 +182,9 @@ class BiometricService extends ChangeNotifier {
       }
 
       if (!_isBiometricAvailable) {
-        print('❌ Biometric not available');
+        if (kDebugMode) {
+          print('❌ Biometric not available');
+        }
         throw PlatformException(
           code: 'NotAvailable',
           message: biometricStatusMessage,
@@ -162,10 +199,14 @@ class BiometricService extends ChangeNotifier {
         ),
       );
 
-      print('🔐 Authentication result: $authenticated');
+      if (kDebugMode) {
+        print('🔐 Authentication result: $authenticated');
+      }
       return authenticated;
     } on PlatformException catch (e) {
-      print('❌ Biometric authentication error: $e');
+      if (kDebugMode) {
+        print('❌ Biometric authentication error: $e');
+      }
 
       if (e.code == 'NotEnrolled') {
         throw PlatformException(
@@ -176,14 +217,18 @@ class BiometricService extends ChangeNotifier {
 
       return false;
     } catch (e) {
-      print('❌ Unexpected biometric error: $e');
+      if (kDebugMode) {
+        print('❌ Unexpected biometric error: $e');
+      }
       return false;
     }
   }
 
   Future<bool> enableBiometric(String userEmail, String password) async {
     try {
-      print('🔐 Enabling biometric authentication...');
+      if (kDebugMode) {
+        print('🔐 Enabling biometric authentication...');
+      }
 
       // Check availability again
       if (!_isBiometricAvailable) {
@@ -203,7 +248,9 @@ class BiometricService extends ChangeNotifier {
       );
 
       if (!authenticated) {
-        print('❌ Biometric authentication failed');
+        if (kDebugMode) {
+          print('❌ Biometric authentication failed');
+        }
         return false;
       }
 
@@ -218,10 +265,14 @@ class BiometricService extends ChangeNotifier {
       _isBiometricEnabled = true;
       notifyListeners();
 
-      print('✅ Biometric authentication enabled successfully');
+      if (kDebugMode) {
+        print('✅ Biometric authentication enabled successfully');
+      }
       return true;
     } catch (e) {
-      print('❌ Error enabling biometric: $e');
+      if (kDebugMode) {
+        print('❌ Error enabling biometric: $e');
+      }
       return false;
     }
   }
@@ -234,9 +285,13 @@ class BiometricService extends ChangeNotifier {
       _isBiometricEnabled = false;
       notifyListeners();
 
-      print('✅ Biometric authentication disabled');
+      if (kDebugMode) {
+        print('✅ Biometric authentication disabled');
+      }
     } catch (e) {
-      print('❌ Error disabling biometric: $e');
+      if (kDebugMode) {
+        print('❌ Error disabling biometric: $e');
+      }
     }
   }
 
@@ -255,7 +310,9 @@ class BiometricService extends ChangeNotifier {
         'password': parts[1],
       };
     } catch (e) {
-      print('❌ Error getting biometric credentials: $e');
+      if (kDebugMode) {
+        print('❌ Error getting biometric credentials: $e');
+      }
       return null;
     }
   }
@@ -269,7 +326,9 @@ class BiometricService extends ChangeNotifier {
         biometricOnly: true,
       );
     } catch (e) {
-      print('❌ App access authentication failed: $e');
+      if (kDebugMode) {
+        print('❌ App access authentication failed: $e');
+      }
       return false;
     }
   }

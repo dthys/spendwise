@@ -1,8 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/banking_service.dart';
 import '../../services/database_service.dart';
-import '../../models/group_model.dart';
 import '../../models/user_model.dart';
 import '../../models/expense_model.dart';
 import '../../models/settlement_model.dart';
@@ -12,10 +12,10 @@ class BalancesScreen extends StatefulWidget {
   final List<UserModel> members;
 
   const BalancesScreen({
-    Key? key,
+    super.key,
     required this.groupId,
     required this.members,
-  }) : super(key: key);
+  });
 
   @override
   _BalancesScreenState createState() => _BalancesScreenState();
@@ -32,42 +32,64 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
       List<ExpenseModel> expenses,
       List<SettlementModel> settlements,
       ) {
-    print('🧮 === CALCULATING BALANCES WITH SETTLEMENTS ===');
-    print('📝 Total expenses: ${expenses.length}');
-    print('💰 Total settlements: ${settlements.length}');
+    if (kDebugMode) {
+      print('🧮 === CALCULATING BALANCES WITH SETTLEMENTS ===');
+    }
+    if (kDebugMode) {
+      print('📝 Total expenses: ${expenses.length}');
+    }
+    if (kDebugMode) {
+      print('💰 Total settlements: ${settlements.length}');
+    }
 
     // Debug: Print all settlements
     for (var settlement in settlements) {
-      print('🔍 Settlement: ${settlement.fromUserId} → ${settlement.toUserId} = €${settlement.amount}');
-      print('   Settled expenses: ${settlement.settledExpenseIds}');
+      if (kDebugMode) {
+        print('🔍 Settlement: ${settlement.fromUserId} → ${settlement.toUserId} = €${settlement.amount}');
+      }
+      if (kDebugMode) {
+        print('   Settled expenses: ${settlement.settledExpenseIds}');
+      }
     }
 
     Map<String, double> balances = {};
 
     for (ExpenseModel expense in expenses) {
-      print('\n📋 Processing expense ${expense.id}: €${expense.amount} paid by ${expense.paidBy}');
+      if (kDebugMode) {
+        print('\n📋 Processing expense ${expense.id}: €${expense.amount} paid by ${expense.paidBy}');
+      }
 
       // Check if this expense has any settlements
       List<SettlementModel> expenseSettlements = settlements
           .where((s) => s.settledExpenseIds.contains(expense.id))
           .toList();
 
-      print('   Found ${expenseSettlements.length} settlements for this expense');
+      if (kDebugMode) {
+        print('   Found ${expenseSettlements.length} settlements for this expense');
+      }
 
       if (expenseSettlements.isEmpty) {
-        print('   ➡️ No settlements - calculating normally');
+        if (kDebugMode) {
+          print('   ➡️ No settlements - calculating normally');
+        }
         // No settlements for this expense - calculate normally
         _addExpenseToBalances(balances, expense);
       } else {
-        print('   ➡️ Has settlements - calculating unsettled portions only');
+        if (kDebugMode) {
+          print('   ➡️ Has settlements - calculating unsettled portions only');
+        }
         // This expense has settlements - calculate only unsettled portions
         _addUnsettledExpenseToBalances(balances, expense, expenseSettlements);
       }
 
-      print('   Current balances after this expense: $balances');
+      if (kDebugMode) {
+        print('   Current balances after this expense: $balances');
+      }
     }
 
-    print('📊 Final balances: $balances');
+    if (kDebugMode) {
+      print('📊 Final balances: $balances');
+    }
     return balances;
   }
 
@@ -87,7 +109,9 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
       ExpenseModel expense,
       List<SettlementModel> expenseSettlements,
       ) {
-    print('    🔍 Checking unsettled portions for expense ${expense.id}');
+    if (kDebugMode) {
+      print('    🔍 Checking unsettled portions for expense ${expense.id}');
+    }
 
     // Get all user pairs that have settled this expense
     Set<String> settledUserPairs = expenseSettlements
@@ -100,41 +124,59 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
         .toList();
     settledUserPairs.addAll(reversePairs);
 
-    print('    📋 Settled user pairs: $settledUserPairs');
+    if (kDebugMode) {
+      print('    📋 Settled user pairs: $settledUserPairs');
+    }
 
     String payer = expense.paidBy;
-    print('    💳 Payer: $payer');
-    print('    👥 Split between: ${expense.splitBetween}');
+    if (kDebugMode) {
+      print('    💳 Payer: $payer');
+    }
+    if (kDebugMode) {
+      print('    👥 Split between: ${expense.splitBetween}');
+    }
 
     // For each participant in the expense
     for (String participant in expense.splitBetween) {
       double participantOwes = expense.getAmountOwedBy(participant);
-      print('    🧮 $participant owes €${participantOwes.toStringAsFixed(2)}');
+      if (kDebugMode) {
+        print('    🧮 $participant owes €${participantOwes.toStringAsFixed(2)}');
+      }
 
       if (participant == payer) {
         // Payer doesn't owe themselves
-        print('    ⚠️ $participant is the payer - skipping');
+        if (kDebugMode) {
+          print('    ⚠️ $participant is the payer - skipping');
+        }
         continue;
       }
 
       // Check if this debt has been settled
       bool isSettled = settledUserPairs.contains('$participant-$payer');
-      print('    🔍 Checking if $participant-$payer is settled: $isSettled');
+      if (kDebugMode) {
+        print('    🔍 Checking if $participant-$payer is settled: $isSettled');
+      }
 
       if (!isSettled) {
         // This portion is NOT settled - include in balances
-        print('    ➕ Adding to balances: $payer gets +€${participantOwes.toStringAsFixed(2)}, $participant gets -€${participantOwes.toStringAsFixed(2)}');
+        if (kDebugMode) {
+          print('    ➕ Adding to balances: $payer gets +€${participantOwes.toStringAsFixed(2)}, $participant gets -€${participantOwes.toStringAsFixed(2)}');
+        }
         balances[payer] = (balances[payer] ?? 0) + participantOwes;
         balances[participant] = (balances[participant] ?? 0) - participantOwes;
       } else {
-        print('    ✅ Settled portion: $participant owes $payer €${participantOwes.toStringAsFixed(2)} for expense ${expense.id}');
+        if (kDebugMode) {
+          print('    ✅ Settled portion: $participant owes $payer €${participantOwes.toStringAsFixed(2)} for expense ${expense.id}');
+        }
       }
     }
   }
 
   // Calculate what still needs to be settled
   List<Settlement> _calculateUnsettledBalances(Map<String, double> currentBalances) {
-    print('🎯 === CALCULATING UNSETTLED BALANCES ===');
+    if (kDebugMode) {
+      print('🎯 === CALCULATING UNSETTLED BALANCES ===');
+    }
 
     List<Settlement> neededSettlements = [];
 
@@ -151,7 +193,9 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
     });
 
     if (debtors.isEmpty || creditors.isEmpty) {
-      print('✅ No debts remaining');
+      if (kDebugMode) {
+        print('✅ No debts remaining');
+      }
       return neededSettlements;
     }
 
@@ -170,7 +214,9 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
       double settlementAmount = debtAmount < creditAmount ? debtAmount : creditAmount;
 
       if (settlementAmount > 0.01) {
-        print('💡 Settlement needed: $debtor owes $creditor €${settlementAmount.toStringAsFixed(2)}');
+        if (kDebugMode) {
+          print('💡 Settlement needed: $debtor owes $creditor €${settlementAmount.toStringAsFixed(2)}');
+        }
 
         neededSettlements.add(Settlement(
           from: debtor,
@@ -186,7 +232,9 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
       if (creditors[j].value < 0.01) j++;
     }
 
-    print('🎯 Total unsettled amounts: ${neededSettlements.length}');
+    if (kDebugMode) {
+      print('🎯 Total unsettled amounts: ${neededSettlements.length}');
+    }
     return neededSettlements;
   }
 
@@ -266,17 +314,17 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
       child: Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          title: Text('Balances'),
+          title: const Text('Balances'),
           backgroundColor: theme.appBarTheme.backgroundColor,
           foregroundColor: theme.appBarTheme.foregroundColor,
           elevation: 0,
           leading: IconButton(
-            icon: Icon(Icons.arrow_back),
+            icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.pop(context, 'refresh'),
           ),
           actions: [
             IconButton(
-              icon: Icon(Icons.history),
+              icon: const Icon(Icons.history),
               onPressed: () => _showSettlementHistory(),
               tooltip: 'Settlement History',
             ),
@@ -289,7 +337,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
               stream: _databaseService.streamGroupSettlements(widget.groupId),
               builder: (context, settlementSnapshot) {
                 if (expenseSnapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
+                  return const Center(child: CircularProgressIndicator());
                 }
 
                 // Calculate current balances using the NEW logic
@@ -310,16 +358,16 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                     setState(() {});
                   },
                   child: SingleChildScrollView(
-                    physics: AlwaysScrollableScrollPhysics(),
+                    physics: const AlwaysScrollableScrollPhysics(),
                     child: Column(
                       children: [
                         // Header
                         Container(
                           width: double.infinity,
-                          padding: EdgeInsets.all(24),
+                          padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
                             color: theme.primaryColor,
-                            borderRadius: BorderRadius.only(
+                            borderRadius: const BorderRadius.only(
                               bottomLeft: Radius.circular(20),
                               bottomRight: Radius.circular(20),
                             ),
@@ -331,7 +379,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                 color: colorScheme.onPrimary,
                                 size: 48,
                               ),
-                              SizedBox(height: 16),
+                              const SizedBox(height: 16),
                               Text(
                                 'Group Balances',
                                 style: TextStyle(
@@ -351,21 +399,21 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                           ),
                         ),
 
-                        SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
                         // Individual Balances
                         Container(
-                          margin: EdgeInsets.symmetric(horizontal: 16),
+                          margin: const EdgeInsets.symmetric(horizontal: 16),
                           child: Card(
                             color: theme.cardColor,
                             child: Column(
                               children: [
                                 Padding(
-                                  padding: EdgeInsets.all(16),
+                                  padding: const EdgeInsets.all(16),
                                   child: Row(
                                     children: [
                                       Icon(Icons.receipt_long, color: theme.primaryColor),
-                                      SizedBox(width: 8),
+                                      const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
                                           'Current Balances',
@@ -391,7 +439,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                 ...widget.members.map((member) {
                                   double balance = currentBalances[member.id] ?? 0.0;
                                   return AnimatedContainer(
-                                    duration: Duration(milliseconds: 300),
+                                    duration: const Duration(milliseconds: 300),
                                     child: ListTile(
                                       leading: CircleAvatar(
                                         backgroundColor: balance.abs() < 0.01
@@ -401,7 +449,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                             : Colors.red.shade500,
                                         child: Text(
                                           member.name.substring(0, 1).toUpperCase(),
-                                          style: TextStyle(color: Colors.white),
+                                          style: const TextStyle(color: Colors.white),
                                         ),
                                       ),
                                       title: Text(
@@ -430,28 +478,28 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                       ),
                                     ),
                                   );
-                                }).toList(),
+                                }),
                               ],
                             ),
                           ),
                         ),
 
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
                         // Unsettled amounts (what still needs to be settled)
                         if (unsettledAmounts.isNotEmpty) ...[
                           Container(
-                            margin: EdgeInsets.symmetric(horizontal: 16),
+                            margin: const EdgeInsets.symmetric(horizontal: 16),
                             child: Card(
                               color: theme.cardColor,
                               child: Column(
                                 children: [
                                   Padding(
-                                    padding: EdgeInsets.all(16),
+                                    padding: const EdgeInsets.all(16),
                                     child: Row(
                                       children: [
                                         Icon(Icons.swap_horiz, color: theme.primaryColor),
-                                        SizedBox(width: 8),
+                                        const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
                                             'Still Need to Settle',
@@ -480,12 +528,12 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                       ),
                                       child: ListTile(
                                         leading: Container(
-                                          padding: EdgeInsets.all(8),
+                                          padding: const EdgeInsets.all(8),
                                           decoration: BoxDecoration(
                                             color: Colors.orange.shade500,
                                             borderRadius: BorderRadius.circular(20),
                                           ),
-                                          child: Icon(Icons.arrow_forward, color: Colors.white),
+                                          child: const Icon(Icons.arrow_forward, color: Colors.white),
                                         ),
                                         title: RichText(
                                           text: TextSpan(
@@ -493,12 +541,12 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                             children: [
                                               TextSpan(
                                                 text: fromUser.name,
-                                                style: TextStyle(fontWeight: FontWeight.bold),
+                                                style: const TextStyle(fontWeight: FontWeight.bold),
                                               ),
-                                              TextSpan(text: ' pays '),
+                                              const TextSpan(text: ' pays '),
                                               TextSpan(
                                                 text: toUser.name,
-                                                style: TextStyle(fontWeight: FontWeight.bold),
+                                                style: const TextStyle(fontWeight: FontWeight.bold),
                                               ),
                                             ],
                                           ),
@@ -534,18 +582,18 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                         },
                                       ),
                                     );
-                                  }).toList(),
+                                  }),
                                 ],
                               ),
                             ),
                           ),
                         ] else ...[
                           Container(
-                            margin: EdgeInsets.symmetric(horizontal: 16),
+                            margin: const EdgeInsets.symmetric(horizontal: 16),
                             child: Card(
                               color: theme.cardColor,
                               child: Padding(
-                                padding: EdgeInsets.all(32),
+                                padding: const EdgeInsets.all(32),
                                 child: Column(
                                   children: [
                                     Icon(
@@ -553,7 +601,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                       color: Colors.green.shade500,
                                       size: 64,
                                     ),
-                                    SizedBox(height: 16),
+                                    const SizedBox(height: 16),
                                     Text(
                                       'All Settled!',
                                       style: TextStyle(
@@ -562,7 +610,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                         color: Colors.green.shade600,
                                       ),
                                     ),
-                                    SizedBox(height: 8),
+                                    const SizedBox(height: 8),
                                     Text(
                                       'All current expenses are settled',
                                       textAlign: TextAlign.center,
@@ -577,7 +625,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                           ),
                         ],
 
-                        SizedBox(height: 100),
+                        const SizedBox(height: 100),
                       ],
                     ),
                   ),
@@ -601,8 +649,8 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
           title: Row(
             children: [
               Icon(Icons.payment, color: Theme.of(context).primaryColor),
-              SizedBox(width: 8),
-              Expanded(child: Text('Settle Amount')),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Settle Amount')),
             ],
           ),
           content: SingleChildScrollView(
@@ -611,7 +659,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
               children: [
                 // Settlement Summary
                 Container(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Theme.of(context).primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -623,20 +671,20 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                           Expanded(
                             child: Text(
                               fromUser.name,
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
-                          Icon(Icons.arrow_forward),
+                          const Icon(Icons.arrow_forward),
                           Expanded(
                             child: Text(
                               toUser.name,
                               textAlign: TextAlign.end,
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
                         ],
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
                         _formatAmount(settlement.amount),
                         style: TextStyle(
@@ -645,7 +693,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                           color: Colors.green.shade600,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
                         'This will settle outstanding expenses',
                         style: TextStyle(
@@ -657,12 +705,12 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                   ),
                 ),
 
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 // Bank Account Info (if available)
                 if (toUser.bankAccount != null) ...[
                   Container(
-                    padding: EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.green.shade50,
                       borderRadius: BorderRadius.circular(8),
@@ -673,7 +721,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                         Row(
                           children: [
                             Icon(Icons.account_balance, color: Colors.green.shade600, size: 20),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 '${toUser.name}\'s Bank Account',
@@ -684,7 +732,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                               ),
                             ),
                             IconButton(
-                              icon: Icon(Icons.copy, size: 18),
+                              icon: const Icon(Icons.copy, size: 18),
                               onPressed: () async {
                                 await Clipboard.setData(ClipboardData(text: toUser.bankAccount!));
                                 _showOverlayNotification(
@@ -699,7 +747,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                             ),
                           ],
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
                           BankingService.formatIBAN(toUser.bankAccount!),
                           style: TextStyle(
@@ -711,13 +759,13 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                       ],
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                 ],
 
                 // Payment Method
                 DropdownButtonFormField<SettlementMethod>(
                   value: selectedMethod,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Payment Method',
                     border: OutlineInputBorder(),
                   ),
@@ -727,7 +775,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                       child: Row(
                         children: [
                           Text(method.emoji),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Text(method.displayName),
                         ],
                       ),
@@ -740,11 +788,11 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                   },
                 ),
 
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 // Notes
                 TextField(
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Notes (optional)',
                     border: OutlineInputBorder(),
                   ),
@@ -752,7 +800,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                   onChanged: (value) => notes = value,
                 ),
 
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 // Quick Actions Row
                 if (toUser.bankAccount != null) ...[
@@ -786,16 +834,16 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                           );
                         }
                       },
-                      icon: Icon(Icons.phone_android),
-                      label: Text('Pay via Bank App'),
+                      icon: const Icon(Icons.phone_android),
+                      label: const Text('Pay via Bank App'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue.shade600,
                         foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   Text(
                     'Or mark as settled after payment:',
                     style: TextStyle(
@@ -807,7 +855,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                 ] else ...[
                   // No bank account warning
                   Container(
-                    padding: EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.orange.shade50,
                       borderRadius: BorderRadius.circular(8),
@@ -816,7 +864,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                     child: Row(
                       children: [
                         Icon(Icons.warning, color: Colors.orange.shade600, size: 20),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             '${toUser.name} hasn\'t added a bank account yet',
@@ -836,7 +884,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () => _confirmSettlement(
@@ -850,7 +898,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                 backgroundColor: Colors.green.shade600,
                 foregroundColor: Colors.white,
               ),
-              child: Text('Mark as Settled'),
+              child: const Text('Mark as Settled'),
             ),
           ],
         ),
@@ -871,11 +919,11 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
         child: Material(
           color: Colors.transparent,
           child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: backgroundColor,
               borderRadius: BorderRadius.circular(8),
-              boxShadow: [
+              boxShadow: const [
                 BoxShadow(
                   color: Colors.black26,
                   blurRadius: 8,
@@ -886,11 +934,11 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
             child: Row(
               children: [
                 Icon(icon, color: Colors.white, size: 20),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     message,
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
                   ),
                 ),
               ],
@@ -921,7 +969,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
       Navigator.pop(context);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Recording settlement...')),
+        const SnackBar(content: Text('Recording settlement...')),
       );
 
       // Get current expenses and settlements
@@ -980,28 +1028,28 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
         height: MediaQuery.of(context).size.height * 0.7,
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
           children: [
             Container(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Theme.of(context).primaryColor,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.history, color: Colors.white),
-                  SizedBox(width: 8),
-                  Expanded(
+                  const Icon(Icons.history, color: Colors.white),
+                  const SizedBox(width: 8),
+                  const Expanded(
                     child: Text(
                       'Settlement History',
                       style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.close, color: Colors.white),
+                    icon: const Icon(Icons.close, color: Colors.white),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -1017,9 +1065,9 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.history, size: 64, color: Colors.grey.shade400),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           Text('No settlements yet', style: TextStyle(fontSize: 18, color: Colors.grey.shade600)),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text('Settlements track which expenses are settled', style: TextStyle(color: Colors.grey.shade500)),
                         ],
                       ),
@@ -1027,7 +1075,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                   }
 
                   return ListView.builder(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     itemCount: snapshot.data!.length,
                     itemBuilder: (context, index) {
                       SettlementModel settlement = snapshot.data![index];
@@ -1037,7 +1085,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                       return Card(
                         child: ListTile(
                           leading: Container(
-                            padding: EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: Colors.green.shade500,
                               borderRadius: BorderRadius.circular(20),

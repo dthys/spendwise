@@ -5,7 +5,6 @@ import '../../services/database_service.dart';
 import '../../models/expense_model.dart';
 import '../../models/group_model.dart';
 import '../../models/user_model.dart';
-import '../../models/activity_log_model.dart';
 
 class EditExpenseScreen extends StatefulWidget {
   final ExpenseModel expense;
@@ -13,11 +12,11 @@ class EditExpenseScreen extends StatefulWidget {
   final List<UserModel> members;
 
   const EditExpenseScreen({
-    Key? key,
+    super.key,
     required this.expense,
     required this.group,
     required this.members,
-  }) : super(key: key);
+  });
 
   @override
   _EditExpenseScreenState createState() => _EditExpenseScreenState();
@@ -38,8 +37,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   bool _isLoading = false;
 
   // Custom split amounts - Map from userId to amount/percentage
-  Map<String, TextEditingController> _customControllers = {};
-  Map<String, double> _customSplits = {};
+  final Map<String, TextEditingController> _customControllers = {};
+  final Map<String, double> _customSplits = {};
 
   // Store original values for comparison
   late ExpenseModel _originalExpense;
@@ -197,7 +196,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(Duration(days: 365)),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now(),
     );
     if (picked != null && picked != _selectedDate) {
@@ -269,13 +268,13 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedPaidBy == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please select who paid')),
+        const SnackBar(content: Text('Please select who paid')),
       );
       return;
     }
     if (_selectedSplitBetween.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please select who to split between')),
+        const SnackBar(content: Text('Please select who to split between')),
       );
       return;
     }
@@ -326,7 +325,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
       if (changes.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('No changes made'),
             backgroundColor: Colors.orange,
           ),
@@ -343,7 +342,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Expense updated successfully!'),
           backgroundColor: Colors.green,
         ),
@@ -371,13 +370,13 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Edit Expense'),
+        title: const Text('Edit Expense'),
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Form(
           key: _formKey,
           child: Column(
@@ -385,7 +384,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             children: [
               // Info banner
               Container(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: theme.primaryColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
@@ -394,7 +393,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 child: Row(
                   children: [
                     Icon(Icons.info, color: theme.primaryColor),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Changes will be logged and group members will be notified.',
@@ -405,7 +404,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 ),
               ),
 
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
 
               // Description
               TextFormField(
@@ -431,12 +430,12 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 },
               ),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Amount
               TextFormField(
                 controller: _amountController,
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   labelText: 'Amount *',
@@ -465,7 +464,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 },
               ),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Category
               DropdownButtonFormField<ExpenseCategory>(
@@ -495,13 +494,13 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 },
               ),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Date
               InkWell(
                 onTap: _selectDate,
                 child: Container(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     border: Border.all(color: colorScheme.outline),
                     borderRadius: BorderRadius.circular(12),
@@ -510,7 +509,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                   child: Row(
                     children: [
                       Icon(Icons.calendar_today, color: theme.primaryColor),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Text(
                         'Date: ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
                         style: TextStyle(
@@ -518,14 +517,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                           color: colorScheme.onSurface,
                         ),
                       ),
-                      Spacer(),
+                      const Spacer(),
                       Icon(Icons.arrow_drop_down, color: colorScheme.onSurface.withOpacity(0.6)),
                     ],
                   ),
                 ),
               ),
 
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
 
               // Who Paid
               Text(
@@ -536,7 +535,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                   color: colorScheme.onSurface,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               ...widget.members.map((member) {
                 return RadioListTile<String>(
                   title: Text(
@@ -556,9 +555,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                     });
                   },
                 );
-              }).toList(),
+              }),
 
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
 
               // Split Type Selection
               Text(
@@ -569,14 +568,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                   color: colorScheme.onSurface,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
 
               // Split type chips
               Wrap(
                 spacing: 8,
                 children: [
                   ChoiceChip(
-                    label: Text('Equal'),
+                    label: const Text('Equal'),
                     selected: _splitType == SplitType.equal,
                     onSelected: (selected) => _onSplitTypeChanged(SplitType.equal),
                     selectedColor: theme.primaryColor.withOpacity(0.3),
@@ -590,7 +589,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                     ),
                   ),
                   ChoiceChip(
-                    label: Text('Exact Amounts'),
+                    label: const Text('Exact Amounts'),
                     selected: _splitType == SplitType.exact,
                     onSelected: (selected) => _onSplitTypeChanged(SplitType.exact),
                     selectedColor: theme.primaryColor.withOpacity(0.3),
@@ -604,7 +603,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                     ),
                   ),
                   ChoiceChip(
-                    label: Text('Percentage'),
+                    label: const Text('Percentage'),
                     selected: _splitType == SplitType.percentage,
                     onSelected: (selected) => _onSplitTypeChanged(SplitType.percentage),
                     selectedColor: theme.primaryColor.withOpacity(0.3),
@@ -620,7 +619,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 ],
               ),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Split Between with Custom Amounts
               Text(
@@ -634,9 +633,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
               // Show total and remaining amount for non-equal splits
               if (_splitType != SplitType.equal) ...[
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Container(
-                  padding: EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: _isValidSplit() ? Colors.green.shade50 : Colors.red.shade50,
                     borderRadius: BorderRadius.circular(8),
@@ -650,19 +649,19 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text('Total ${_splitType == SplitType.percentage ? "Percentage" : "Split"}:',
-                              style: TextStyle(fontWeight: FontWeight.w500)),
+                              style: const TextStyle(fontWeight: FontWeight.w500)),
                           Text(
                             _splitType == SplitType.percentage
                                 ? '${_getTotalSplitAmount().toStringAsFixed(1)}%'
                                 : '${widget.group.currency} ${_getTotalSplitAmount().toStringAsFixed(2)}',
-                            style: TextStyle(fontWeight: FontWeight.bold),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Remaining:', style: TextStyle(fontWeight: FontWeight.w500)),
+                          const Text('Remaining:', style: TextStyle(fontWeight: FontWeight.w500)),
                           Text(
                             _splitType == SplitType.percentage
                                 ? '${_getRemainingAmount().toStringAsFixed(1)}%'
@@ -679,14 +678,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 ),
               ],
 
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
 
               ...widget.members.map((member) {
                 return Card(
-                  margin: EdgeInsets.only(bottom: 8),
+                  margin: const EdgeInsets.only(bottom: 8),
                   color: theme.cardColor,
                   child: Padding(
-                    padding: EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(8),
                     child: Row(
                       children: [
                         if (_splitType == SplitType.equal) ...[
@@ -727,21 +726,21 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                             ],
                           ),
                         ),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Expanded(
                           flex: 2,
                           child: TextFormField(
                             controller: _customControllers[member.id],
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             enabled: _splitType != SplitType.equal,
                             style: TextStyle(color: colorScheme.onSurface),
                             decoration: InputDecoration(
                               labelText: _getSplitSuffix(),
-                              labelStyle: TextStyle(fontSize: 12),
+                              labelStyle: const TextStyle(fontSize: 12),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                               filled: true,
                               fillColor: _splitType != SplitType.equal
                                   ? colorScheme.surface
@@ -754,9 +753,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                     ),
                   ),
                 );
-              }).toList(),
+              }),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Notes (Optional)
               TextFormField(
@@ -777,7 +776,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 ),
               ),
 
-              SizedBox(height: 32),
+              const SizedBox(height: 32),
 
               // Update Button
               SizedBox(
@@ -787,7 +786,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.primaryColor,
                     foregroundColor: colorScheme.onPrimary,
-                    padding: EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -802,7 +801,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                       valueColor: AlwaysStoppedAnimation<Color>(colorScheme.onPrimary),
                     ),
                   )
-                      : Text(
+                      : const Text(
                     'Update Expense',
                     style: TextStyle(
                       fontSize: 16,

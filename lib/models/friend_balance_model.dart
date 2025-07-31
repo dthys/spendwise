@@ -1,6 +1,5 @@
 // Create this as models/friend_balance_model.dart
 
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 

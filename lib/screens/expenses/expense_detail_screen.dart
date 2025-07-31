@@ -5,7 +5,6 @@ import '../../services/database_service.dart';
 import '../../models/expense_model.dart';
 import '../../models/group_model.dart';
 import '../../models/user_model.dart';
-import '../../models/activity_log_model.dart';
 import 'edit_expense_screen.dart';
 
 class ExpenseDetailScreen extends StatefulWidget {
@@ -14,11 +13,11 @@ class ExpenseDetailScreen extends StatefulWidget {
   final List<UserModel> members;
 
   const ExpenseDetailScreen({
-    Key? key,
+    super.key,
     required this.expense,
     required this.group,
     required this.members,
-  }) : super(key: key);
+  });
 
   @override
   _ExpenseDetailScreenState createState() => _ExpenseDetailScreenState();
@@ -54,7 +53,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
   Future<void> _editExpense() async {
     if (!_canUserEdit()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('You can only edit expenses you paid for'),
           backgroundColor: Colors.orange,
         ),
@@ -82,7 +81,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
   Future<void> _deleteExpense() async {
     if (!_canUserEdit()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('You can only delete expenses you paid for'),
           backgroundColor: Colors.orange,
         ),
@@ -111,7 +110,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -119,7 +118,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: Text('Delete'),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -137,7 +136,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('🗑️ Expense deleted successfully'),
           backgroundColor: Colors.green,
         ),
@@ -168,14 +167,14 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Expense Details'),
+        title: const Text('Expense Details'),
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: 0,
         actions: [
           if (canEdit) ...[
             IconButton(
-              icon: Icon(Icons.edit),
+              icon: const Icon(Icons.edit),
               onPressed: _editExpense,
               tooltip: 'Edit Expense',
             ),
@@ -189,7 +188,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                   color: theme.appBarTheme.foregroundColor,
                 ),
               )
-                  : Icon(Icons.delete),
+                  : const Icon(Icons.delete),
               onPressed: _isDeleting ? null : _deleteExpense,
               tooltip: 'Delete Expense',
             ),
@@ -202,10 +201,10 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
             // Header
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(24),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: theme.primaryColor,
-                borderRadius: BorderRadius.only(
+                borderRadius: const BorderRadius.only(
                   bottomLeft: Radius.circular(20),
                   bottomRight: Radius.circular(20),
                 ),
@@ -217,10 +216,10 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                     backgroundColor: colorScheme.onPrimary.withOpacity(0.2),
                     child: Text(
                       widget.expense.category.emoji,
-                      style: TextStyle(fontSize: 30),
+                      style: const TextStyle(fontSize: 30),
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Text(
                     widget.expense.description,
                     style: TextStyle(
@@ -230,7 +229,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                     _formatCurrency(widget.expense.amount),
                     style: TextStyle(
@@ -243,18 +242,18 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
               ),
             ),
 
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
 
             // Details Cards
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
                   // Basic Info Card
                   Card(
                     color: theme.cardColor,
                     child: Padding(
-                      padding: EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -266,7 +265,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                               color: colorScheme.onSurface,
                             ),
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           _buildDetailRow('Category', '${widget.expense.category.emoji} ${widget.expense.category.displayName}'),
                           _buildDetailRow('Date', '${widget.expense.date.day}/${widget.expense.date.month}/${widget.expense.date.year}'),
                           _buildDetailRow('Added on', '${widget.expense.createdAt.day}/${widget.expense.createdAt.month}/${widget.expense.createdAt.year}'),
@@ -278,13 +277,13 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                     ),
                   ),
 
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // Paid By Card
                   Card(
                     color: theme.cardColor,
                     child: Padding(
-                      padding: EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -296,14 +295,14 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                               color: colorScheme.onSurface,
                             ),
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           ListTile(
                             contentPadding: EdgeInsets.zero,
                             leading: CircleAvatar(
                               backgroundColor: Colors.green.shade500,
                               child: Text(
                                 paidByUser?.name.substring(0, 1).toUpperCase() ?? '?',
-                                style: TextStyle(color: Colors.white),
+                                style: const TextStyle(color: Colors.white),
                               ),
                             ),
                             title: Text(
@@ -331,13 +330,13 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                     ),
                   ),
 
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // Split Between Card
                   Card(
                     color: theme.cardColor,
                     child: Padding(
-                      padding: EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -349,7 +348,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                               color: colorScheme.onSurface,
                             ),
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           ...widget.expense.splitBetween.map((userId) {
                             final user = _getUserById(userId);
                             final userShare = widget.expense.getAmountOwedBy(userId);
@@ -383,7 +382,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                                 ),
                               ),
                             );
-                          }).toList(),
+                          }),
                         ],
                       ),
                     ),
@@ -391,9 +390,9 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
 
                   // Permissions notice
                   if (!canEdit) ...[
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Container(
-                      padding: EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(12),
@@ -402,7 +401,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                       child: Row(
                         children: [
                           Icon(Icons.info, color: Colors.orange.shade600),
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               'You can only edit or delete expenses you paid for.',
@@ -413,9 +412,9 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                       ),
                     ),
                   ] else ...[
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Container(
-                      padding: EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.blue.shade50,
                         borderRadius: BorderRadius.circular(12),
@@ -424,7 +423,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                       child: Row(
                         children: [
                           Icon(Icons.notifications_active, color: Colors.blue.shade600),
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               'Changes to this expense will notify all group members.',
@@ -436,7 +435,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                     ),
                   ],
 
-                  SizedBox(height: 100), // Bottom padding
+                  const SizedBox(height: 100), // Bottom padding
                 ],
               ),
             ),
@@ -450,7 +449,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

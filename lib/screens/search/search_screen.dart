@@ -1,14 +1,16 @@
 // Enhanced screens/search/search_screen.dart with smooth animations
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../models/group_model.dart';
-import '../../models/user_model.dart';
 import '../../models/friend_balance_model.dart';
 import '../groups/group_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
+  const SearchScreen({super.key});
+
   @override
   _SearchScreenState createState() => _SearchScreenState();
 }
@@ -42,11 +44,11 @@ class _SearchScreenState extends State<SearchScreen>
 
     // Initialize animation controllers
     _fadeController = AnimationController(
-      duration: Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     );
     _slideController = AnimationController(
-      duration: Duration(milliseconds: 350),
+      duration: const Duration(milliseconds: 350),
       vsync: this,
     );
 
@@ -60,7 +62,7 @@ class _SearchScreenState extends State<SearchScreen>
     ));
 
     _slideAnimation = Tween<Offset>(
-      begin: Offset(0.0, 0.2),
+      begin: const Offset(0.0, 0.2),
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _slideController,
@@ -102,7 +104,9 @@ class _SearchScreenState extends State<SearchScreen>
         });
       }
     } catch (e) {
-      print('Error loading search data: $e');
+      if (kDebugMode) {
+        print('Error loading search data: $e');
+      }
       setState(() {
         _isLoading = false;
       });
@@ -168,14 +172,14 @@ class _SearchScreenState extends State<SearchScreen>
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: animation.drive(
-              Tween(begin: Offset(1.0, 0.0), end: Offset.zero).chain(
+              Tween(begin: const Offset(1.0, 0.0), end: Offset.zero).chain(
                 CurveTween(curve: Curves.easeInOut),
               ),
             ),
             child: child,
           );
         },
-        transitionDuration: Duration(milliseconds: 300),
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
   }
@@ -194,7 +198,7 @@ class _SearchScreenState extends State<SearchScreen>
       tag: 'search_bar',
       child: Material(
         child: Container(
-          margin: EdgeInsets.all(16),
+          margin: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -202,7 +206,7 @@ class _SearchScreenState extends State<SearchScreen>
               BoxShadow(
                 color: Colors.black.withOpacity(0.1),
                 blurRadius: 8,
-                offset: Offset(0, 2),
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -219,7 +223,7 @@ class _SearchScreenState extends State<SearchScreen>
               )
                   : null,
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             ),
           ),
         ),
@@ -229,8 +233,8 @@ class _SearchScreenState extends State<SearchScreen>
 
   Widget _buildToggleButtons() {
     return AnimatedContainer(
-      duration: Duration(milliseconds: 200),
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(25),
@@ -245,8 +249,8 @@ class _SearchScreenState extends State<SearchScreen>
                 });
               },
               child: AnimatedContainer(
-                duration: Duration(milliseconds: 200),
-                padding: EdgeInsets.symmetric(vertical: 12),
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color: _showingGroups ? Theme.of(context).primaryColor : Colors.transparent,
                   borderRadius: BorderRadius.circular(25),
@@ -259,7 +263,7 @@ class _SearchScreenState extends State<SearchScreen>
                       color: _showingGroups ? Colors.white : Colors.grey.shade600,
                       size: 20,
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text(
                       'Groups (${_filteredGroups.length})',
                       style: TextStyle(
@@ -280,8 +284,8 @@ class _SearchScreenState extends State<SearchScreen>
                 });
               },
               child: AnimatedContainer(
-                duration: Duration(milliseconds: 200),
-                padding: EdgeInsets.symmetric(vertical: 12),
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color: !_showingGroups ? Theme.of(context).primaryColor : Colors.transparent,
                   borderRadius: BorderRadius.circular(25),
@@ -294,7 +298,7 @@ class _SearchScreenState extends State<SearchScreen>
                       color: !_showingGroups ? Colors.white : Colors.grey.shade600,
                       size: 20,
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text(
                       'Friends (${_filteredFriends.length})',
                       style: TextStyle(
@@ -314,7 +318,7 @@ class _SearchScreenState extends State<SearchScreen>
 
   Widget _buildRecentSearches() {
     if (_recentSearches.isEmpty || _searchQuery.isNotEmpty) {
-      return SizedBox.shrink();
+      return const SizedBox.shrink();
     }
 
     return FadeTransition(
@@ -323,7 +327,7 @@ class _SearchScreenState extends State<SearchScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -341,20 +345,20 @@ class _SearchScreenState extends State<SearchScreen>
                       _recentSearches.clear();
                     });
                   },
-                  child: Text('Clear'),
+                  child: const Text('Clear'),
                 ),
               ],
             ),
           ),
-          Container(
+          SizedBox(
             height: 40,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: _recentSearches.length,
               itemBuilder: (context, index) {
                 return Container(
-                  margin: EdgeInsets.only(right: 8),
+                  margin: const EdgeInsets.only(right: 8),
                   child: ActionChip(
                     label: Text(_recentSearches[index]),
                     onPressed: () {
@@ -367,7 +371,7 @@ class _SearchScreenState extends State<SearchScreen>
               },
             ),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -379,7 +383,7 @@ class _SearchScreenState extends State<SearchScreen>
       child: SlideTransition(
         position: _slideAnimation,
         child: _isLoading
-            ? Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator())
             : _showingGroups
             ? _buildGroupsList()
             : _buildFriendsList(),
@@ -395,7 +399,7 @@ class _SearchScreenState extends State<SearchScreen>
     }
 
     return ListView.builder(
-      padding: EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: _filteredGroups.length,
       itemBuilder: (context, index) {
         final group = _filteredGroups[index];
@@ -408,7 +412,7 @@ class _SearchScreenState extends State<SearchScreen>
               child: Opacity(
                 opacity: value,
                 child: Card(
-                  margin: EdgeInsets.only(bottom: 8),
+                  margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
                     leading: Hero(
                       tag: 'group_${group.id}',
@@ -416,7 +420,7 @@ class _SearchScreenState extends State<SearchScreen>
                         backgroundColor: Theme.of(context).primaryColor,
                         child: Text(
                           group.name.substring(0, 1).toUpperCase(),
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
@@ -425,7 +429,7 @@ class _SearchScreenState extends State<SearchScreen>
                     ),
                     title: Text(
                       group.name,
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,7 +447,7 @@ class _SearchScreenState extends State<SearchScreen>
                           ),
                       ],
                     ),
-                    trailing: Icon(Icons.arrow_forward_ios, size: 16),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () => _navigateToGroupDetail(group.id),
                   ),
                 ),
@@ -463,7 +467,7 @@ class _SearchScreenState extends State<SearchScreen>
     }
 
     return ListView.builder(
-      padding: EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: _filteredFriends.length,
       itemBuilder: (context, index) {
         final friendBalance = _filteredFriends[index];
@@ -476,7 +480,7 @@ class _SearchScreenState extends State<SearchScreen>
               child: Opacity(
                 opacity: value,
                 child: Card(
-                  margin: EdgeInsets.only(bottom: 8),
+                  margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
                     leading: CircleAvatar(
                       radius: 24,
@@ -497,7 +501,7 @@ class _SearchScreenState extends State<SearchScreen>
                     ),
                     title: Text(
                       friendBalance.friend.name,
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -556,7 +560,7 @@ class _SearchScreenState extends State<SearchScreen>
               size: 64,
               color: Colors.grey.shade400,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               message,
               style: TextStyle(
@@ -575,12 +579,12 @@ class _SearchScreenState extends State<SearchScreen>
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Search'),
+        title: const Text('Search'),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -616,7 +620,7 @@ class _FriendDetailsDialogState extends State<_FriendDetailsDialog>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 300),
       vsync: this,
     );
 
@@ -672,14 +676,14 @@ class _FriendDetailsDialogState extends State<_FriendDetailsDialog>
                 )
                     : null,
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       widget.friendBalance.friend.name,
-                      style: TextStyle(fontSize: 18),
+                      style: const TextStyle(fontSize: 18),
                     ),
                     Text(
                       widget.friendBalance.balanceText,
@@ -700,11 +704,11 @@ class _FriendDetailsDialogState extends State<_FriendDetailsDialog>
             children: [
               Text(
                 'Shared Groups (${widget.friendBalance.sharedGroupsCount}):',
-                style: TextStyle(fontWeight: FontWeight.w600),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Container(
-                constraints: BoxConstraints(maxHeight: 200),
+                constraints: const BoxConstraints(maxHeight: 200),
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: widget.friendBalance.sharedGroupIds.length,
@@ -723,11 +727,11 @@ class _FriendDetailsDialogState extends State<_FriendDetailsDialog>
                                 child: Opacity(
                                   opacity: value,
                                   child: Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 2),
+                                    padding: const EdgeInsets.symmetric(vertical: 2),
                                     child: Row(
                                       children: [
-                                        Icon(Icons.group, size: 16, color: Colors.grey),
-                                        SizedBox(width: 8),
+                                        const Icon(Icons.group, size: 16, color: Colors.grey),
+                                        const SizedBox(width: 8),
                                         Expanded(child: Text(snapshot.data!.name)),
                                         TextButton(
                                           onPressed: () {
@@ -740,18 +744,18 @@ class _FriendDetailsDialogState extends State<_FriendDetailsDialog>
                                                 transitionsBuilder: (context, animation, secondaryAnimation, child) {
                                                   return SlideTransition(
                                                     position: animation.drive(
-                                                      Tween(begin: Offset(1.0, 0.0), end: Offset.zero).chain(
+                                                      Tween(begin: const Offset(1.0, 0.0), end: Offset.zero).chain(
                                                         CurveTween(curve: Curves.easeInOut),
                                                       ),
                                                     ),
                                                     child: child,
                                                   );
                                                 },
-                                                transitionDuration: Duration(milliseconds: 300),
+                                                transitionDuration: const Duration(milliseconds: 300),
                                               ),
                                             );
                                           },
-                                          child: Text('View'),
+                                          child: const Text('View'),
                                         ),
                                       ],
                                     ),
@@ -761,7 +765,7 @@ class _FriendDetailsDialogState extends State<_FriendDetailsDialog>
                             },
                           );
                         }
-                        return SizedBox.shrink();
+                        return const SizedBox.shrink();
                       },
                     );
                   },
@@ -772,7 +776,7 @@ class _FriendDetailsDialogState extends State<_FriendDetailsDialog>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Close'),
+              child: const Text('Close'),
             ),
           ],
         ),

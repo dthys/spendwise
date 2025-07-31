@@ -6,9 +6,9 @@ class ThemeToggleWidget extends StatelessWidget {
   final bool showAsListTile;
 
   const ThemeToggleWidget({
-    Key? key,
+    super.key,
     this.showAsListTile = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -20,9 +20,9 @@ class ThemeToggleWidget extends StatelessWidget {
               themeService.currentThemeIcon,
               color: Theme.of(context).primaryColor,
             ),
-            title: Text('Appearance'),
+            title: const Text('Appearance'),
             subtitle: Text('${themeService.currentThemeText} mode'),
-            trailing: Icon(Icons.arrow_forward_ios, size: 16),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () => _showThemeDialog(context, themeService),
           );
         } else {
@@ -40,7 +40,7 @@ class ThemeToggleWidget extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Choose Theme'),
+        title: const Text('Choose Theme'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -106,13 +106,15 @@ class _ThemeOption extends StatelessWidget {
 
 // Quick theme toggle for AppBar - Simple toggle between light/dark
 class QuickThemeToggle extends StatelessWidget {
+  const QuickThemeToggle({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ThemeService>(
       builder: (context, themeService, child) {
         return IconButton(
           icon: AnimatedSwitcher(
-            duration: Duration(milliseconds: 300),
+            duration: const Duration(milliseconds: 300),
             child: Icon(
               themeService.currentThemeIcon,
               key: ValueKey(themeService.themeMode),
@@ -128,6 +130,8 @@ class QuickThemeToggle extends StatelessWidget {
 
 // Alternative: Switch-style toggle
 class ThemeSwitchWidget extends StatelessWidget {
+  const ThemeSwitchWidget({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ThemeService>(
@@ -137,7 +141,7 @@ class ThemeSwitchWidget extends StatelessWidget {
             themeService.isDarkMode ? Icons.dark_mode : Icons.light_mode,
             color: Theme.of(context).primaryColor,
           ),
-          title: Text('Dark Mode'),
+          title: const Text('Dark Mode'),
           subtitle: Text(themeService.isDarkMode ? 'Enabled' : 'Disabled'),
           trailing: Switch(
             value: themeService.isDarkMode,

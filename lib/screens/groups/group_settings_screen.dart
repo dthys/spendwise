@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
@@ -11,7 +12,7 @@ import '../../services/banking_service.dart';
 class GroupSettingsScreen extends StatefulWidget {
   final GroupModel group;
 
-  const GroupSettingsScreen({Key? key, required this.group}) : super(key: key);
+  const GroupSettingsScreen({super.key, required this.group});
 
   @override
   _GroupSettingsScreenState createState() => _GroupSettingsScreenState();
@@ -53,7 +54,9 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
         });
       }
     } catch (e) {
-      print('Error loading current user: $e');
+      if (kDebugMode) {
+        print('Error loading current user: $e');
+      }
     }
   }
 
@@ -89,7 +92,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
       await _loadMembers(); // Refresh members list
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Member added successfully!'),
           backgroundColor: Colors.green,
         ),
@@ -116,14 +119,14 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Bankrekening succesvol bijgewerkt'),
             backgroundColor: Colors.green,
           ),
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Fout bij bijwerken bankrekening'),
             backgroundColor: Colors.red,
           ),
@@ -166,17 +169,17 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Leave Group'),
+        title: const Text('Leave Group'),
         content: Text('Are you sure you want to leave "${widget.group.name}"?\n\nThis action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: Text('Leave Group', style: TextStyle(color: Colors.white)),
+            child: const Text('Leave Group', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -187,7 +190,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
         await _databaseService.leaveGroup(widget.group.id, currentUserId!);
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Successfully left the group'),
             backgroundColor: Colors.green,
           ),
@@ -207,7 +210,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
             Icon(Icons.warning, color: Colors.red),
             SizedBox(width: 8),
@@ -219,15 +222,15 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('You are the last member of "${widget.group.name}".'),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.red.shade50,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.red.shade200),
               ),
-              child: Column(
+              child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -242,19 +245,19 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                 ],
               ),
             ),
-            SizedBox(height: 12),
-            Text('Are you sure you want to delete this group?'),
+            const SizedBox(height: 12),
+            const Text('Are you sure you want to delete this group?'),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Delete Group', style: TextStyle(color: Colors.white)),
+            child: const Text('Delete Group', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -266,7 +269,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => AlertDialog(
+          builder: (context) => const AlertDialog(
             content: Row(
               children: [
                 CircularProgressIndicator(),
@@ -283,7 +286,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
         Navigator.pop(context);
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Group deleted successfully'),
             backgroundColor: Colors.green,
           ),
@@ -316,7 +319,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
-        padding: EdgeInsets.symmetric(vertical: 20),
+        padding: const EdgeInsets.symmetric(vertical: 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -329,7 +332,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                 child: member.photoUrl == null
                     ? Text(
                   member.name.substring(0, 1).toUpperCase(),
-                  style: TextStyle(color: Colors.white),
+                  style: const TextStyle(color: Colors.white),
                 )
                     : null,
               ),
@@ -339,7 +342,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                 children: [
                   Text(member.email),
                   if (member.bankAccount != null)
-                    Row(
+                    const Row(
                       children: [
                         Icon(Icons.account_balance, size: 16, color: Colors.green),
                         SizedBox(width: 4),
@@ -355,7 +358,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                 ],
               ),
             ),
-            Divider(),
+            const Divider(),
 
             // Bank Account option (only for current user)
             if (isCurrentUser)
@@ -364,15 +367,15 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                   Icons.account_balance,
                   color: _currentUser?.bankAccount != null ? Colors.green : Colors.grey,
                 ),
-                title: Text('Bank Account'),
+                title: const Text('Bank Account'),
                 subtitle: Text(
                   _currentUser?.bankAccount != null
                       ? 'IBAN: ${BankingService.formatIBAN(_currentUser!.bankAccount!)}'
                       : 'Add bank account for payments',
                 ),
                 trailing: _currentUser?.bankAccount != null
-                    ? Icon(Icons.check_circle, color: Colors.green, size: 20)
-                    : Icon(Icons.add, color: Colors.grey),
+                    ? const Icon(Icons.check_circle, color: Colors.green, size: 20)
+                    : const Icon(Icons.add, color: Colors.grey),
                 onTap: () {
                   Navigator.pop(context);
                   _showBankAccountDialog();
@@ -381,16 +384,16 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
             if (!isCurrentUser && isCreator)
               ListTile(
-                leading: Icon(Icons.remove_circle, color: Colors.red),
-                title: Text('Remove from Group'),
+                leading: const Icon(Icons.remove_circle, color: Colors.red),
+                title: const Text('Remove from Group'),
                 onTap: () {
                   Navigator.pop(context);
                   _removeMember(member);
                 },
               ),
             ListTile(
-              leading: Icon(Icons.email),
-              title: Text('Send Email'),
+              leading: const Icon(Icons.email),
+              title: const Text('Send Email'),
               onTap: () {
                 Navigator.pop(context);
                 _showError('Email functionality coming soon!');
@@ -407,17 +410,17 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Remove Member'),
+        title: const Text('Remove Member'),
         content: Text('Are you sure you want to remove ${member.name} from the group?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Remove', style: TextStyle(color: Colors.white)),
+            child: const Text('Remove', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -458,21 +461,21 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Group Settings'),
+        title: const Text('Group Settings'),
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Group Info Card
             Card(
               child: Padding(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -483,21 +486,21 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                           radius: 25,
                           child: Text(
                             widget.group.name.substring(0, 1).toUpperCase(),
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
-                        SizedBox(width: 16),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 widget.group.name,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -526,17 +529,17 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
               ),
             ),
 
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
 
             // Add Member Section
-            Text(
+            const Text(
               'Add Member',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
@@ -544,7 +547,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     controller: _emailController,
                     decoration: InputDecoration(
                       hintText: 'Enter email address',
-                      prefixIcon: Icon(Icons.email),
+                      prefixIcon: const Icon(Icons.email),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -552,18 +555,18 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     keyboardType: TextInputType.emailAddress,
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 ElevatedButton(
                   onPressed: _isAddingMember ? null : _addMember,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.primaryColor,
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   child: _isAddingMember
-                      ? SizedBox(
+                      ? const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
@@ -571,12 +574,12 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
-                      : Icon(Icons.add, color: Colors.white),
+                      : const Icon(Icons.add, color: Colors.white),
                 ),
               ],
             ),
 
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
 
             // Members Section
             Row(
@@ -584,14 +587,14 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
               children: [
                 Text(
                   'Members (${_members.length})',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
 
             // Members List
             ...(_members.map((member) {
@@ -608,7 +611,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     child: member.photoUrl == null
                         ? Text(
                       member.name.substring(0, 1).toUpperCase(),
-                      style: TextStyle(color: Colors.white),
+                      style: const TextStyle(color: Colors.white),
                     )
                         : null,
                   ),
@@ -617,8 +620,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                       Expanded(child: Text(member.name)),
                       if (isCurrentUser)
                         Container(
-                          margin: EdgeInsets.only(left: 8),
-                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.blue.shade100,
                             borderRadius: BorderRadius.circular(8),
@@ -634,8 +637,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                         ),
                       if (isMemberCreator)
                         Container(
-                          margin: EdgeInsets.only(left: 8),
-                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.green.shade100,
                             borderRadius: BorderRadius.circular(8),
@@ -651,8 +654,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                         ),
                       if (member.bankAccount != null)
                         Container(
-                          margin: EdgeInsets.only(left: 8),
-                          child: Icon(
+                          margin: const EdgeInsets.only(left: 8),
+                          child: const Icon(
                             Icons.account_balance,
                             size: 16,
                             color: Colors.green,
@@ -661,19 +664,19 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     ],
                   ),
                   subtitle: Text(member.email),
-                  trailing: Icon(Icons.more_vert),
+                  trailing: const Icon(Icons.more_vert),
                   onTap: () => _showMemberOptions(member),
                 ),
               );
             }).toList()),
 
-            SizedBox(height: 32),
+            const SizedBox(height: 32),
 
             // Leave/Delete Group Section - Updated with smart logic
             Card(
               color: _members.length <= 1 ? Colors.red.shade50 : Colors.orange.shade50,
               child: Padding(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -683,7 +686,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                           _members.length <= 1 ? Icons.delete_forever : Icons.exit_to_app,
                           color: _members.length <= 1 ? Colors.red.shade600 : Colors.orange.shade600,
                         ),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Text(
                           _members.length <= 1 ? 'Delete Group' : 'Leave Group',
                           style: TextStyle(
@@ -694,7 +697,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                         ),
                       ],
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
                       _members.length <= 1
                           ? 'You are the last member of this group. Leaving will permanently delete the entire group, including all expenses and history.'
@@ -704,7 +707,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                         fontSize: 14,
                       ),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(

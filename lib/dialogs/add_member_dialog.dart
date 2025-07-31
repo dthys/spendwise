@@ -7,10 +7,10 @@ class AddMemberDialog extends StatefulWidget {
   final VoidCallback? onMemberAdded;
 
   const AddMemberDialog({
-    Key? key,
+    super.key,
     required this.group,
     this.onMemberAdded,
-  }) : super(key: key);
+  });
 
   @override
   _AddMemberDialogState createState() => _AddMemberDialogState();
@@ -45,7 +45,7 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
       widget.onMemberAdded?.call();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Member added successfully!'),
           backgroundColor: Colors.green,
         ),
@@ -78,7 +78,7 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
             decoration: InputDecoration(
               labelText: 'Email Address',
               hintText: 'Enter friend\'s email',
-              prefixIcon: Icon(Icons.email),
+              prefixIcon: const Icon(Icons.email),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -86,9 +86,9 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
             keyboardType: TextInputType.emailAddress,
             autofocus: true,
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.blue.shade50,
               borderRadius: BorderRadius.circular(8),
@@ -97,7 +97,7 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
             child: Row(
               children: [
                 Icon(Icons.info, color: Colors.blue.shade600, size: 20),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Only registered users can be added to groups',
@@ -115,7 +115,7 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
       actions: [
         TextButton(
           onPressed: _isLoading ? null : () => Navigator.pop(context),
-          child: Text('Cancel'),
+          child: const Text('Cancel'),
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _addMember,
@@ -123,7 +123,7 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
             backgroundColor: Theme.of(context).primaryColor,
           ),
           child: _isLoading
-              ? SizedBox(
+              ? const SizedBox(
             width: 20,
             height: 20,
             child: CircularProgressIndicator(
@@ -131,7 +131,7 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           )
-              : Text('Add Member', style: TextStyle(color: Colors.white)),
+              : const Text('Add Member', style: TextStyle(color: Colors.white)),
         ),
       ],
     );

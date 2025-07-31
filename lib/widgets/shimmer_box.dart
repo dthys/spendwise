@@ -7,11 +7,11 @@ class ShimmerBox extends StatefulWidget {
   final double borderRadius;
 
   const ShimmerBox({
-    Key? key,
+    super.key,
     required this.width,
     required this.height,
     this.borderRadius = 0,
-  }) : super(key: key);
+  });
 
   @override
   _ShimmerBoxState createState() => _ShimmerBoxState();
@@ -26,7 +26,7 @@ class _ShimmerBoxState extends State<ShimmerBox>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
     _animation = Tween<double>(begin: -1.0, end: 2.0).animate(

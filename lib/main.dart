@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
@@ -19,10 +20,12 @@ import 'dialogs/update_dialog.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -45,7 +48,7 @@ class MyApp extends StatelessWidget {
             themeMode: themeService.themeMode,
 
             // Start with splash screen instead of AuthWrapper
-            home: SplashScreen(
+            home: const SplashScreen(
               nextScreen: AuthWrapper(),
             ),
 
@@ -61,7 +64,7 @@ class MyApp extends StatelessWidget {
             builder: (context, child) {
               return MediaQuery(
                 data: MediaQuery.of(context).copyWith(
-                  textScaleFactor: 1.0, // Prevent font scaling issues
+                  textScaler: const TextScaler.linear(1.0), // Prevent font scaling issues
                 ),
                 child: child!,
               );
@@ -74,6 +77,8 @@ class MyApp extends StatelessWidget {
 }
 
 class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
   @override
   _AuthWrapperState createState() => _AuthWrapperState();
 }
@@ -104,14 +109,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
               setState(() {
                 _updateServiceInitialized = true;
               });
-              print('✅ UpdateService initialized');
+              if (kDebugMode) {
+                print('✅ UpdateService initialized');
+              }
 
               // Background update check - no flash!
               if (!_hasCheckedForUpdates) {
                 _checkForUpdatesInBackground(updateService);
               }
             } catch (e) {
-              print('❌ Failed to initialize UpdateService: $e');
+              if (kDebugMode) {
+                print('❌ Failed to initialize UpdateService: $e');
+              }
             }
           });
         }
@@ -124,15 +133,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
               setState(() {
                 _notificationsInitialized = true;
               });
-              print('✅ Notifications initialized');
+              if (kDebugMode) {
+                print('✅ Notifications initialized');
+              }
             } catch (e) {
-              print('❌ Failed to initialize notifications: $e');
+              if (kDebugMode) {
+                print('❌ Failed to initialize notifications: $e');
+              }
             }
           });
         }
 
         if (authService.isLoading) {
-          return Scaffold(
+          return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
@@ -181,13 +194,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
                     size: 64,
                     color: Colors.blue.shade500,
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Text(
                     'Authenticating with ${biometricService.biometricTypeText}...',
-                    style: TextStyle(fontSize: 16),
+                    style: const TextStyle(fontSize: 16),
                   ),
-                  SizedBox(height: 24),
-                  CircularProgressIndicator(),
+                  const SizedBox(height: 24),
+                  const CircularProgressIndicator(),
                 ],
               ),
             ),
@@ -206,17 +219,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
                     size: 64,
                     color: Colors.red.shade500,
                   ),
-                  SizedBox(height: 16),
-                  Text(
+                  const SizedBox(height: 16),
+                  const Text(
                     'Authentication Required',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 8),
-                  Text('Please authenticate to access Spendwise'),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 8),
+                  const Text('Please authenticate to access Spendwise'),
+                  const SizedBox(height: 24),
                   ElevatedButton.icon(
                     onPressed: () async {
                       bool success = await biometricService.authenticateForAppAccess();
@@ -229,7 +242,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                     icon: Icon(biometricService.biometricIcon),
                     label: Text('Try ${biometricService.biometricTypeText} Again'),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   TextButton(
                     onPressed: () {
                       authService.signOut();
@@ -239,7 +252,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                         _updateServiceInitialized = false;
                       });
                     },
-                    child: Text('Sign Out'),
+                    child: const Text('Sign Out'),
                   ),
                 ],
               ),
@@ -264,11 +277,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
       future: ensureUserInFirestore(authService.currentUser!),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
+          return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        return HomeScreen();
+        return const HomeScreen();
       },
     );
   }
@@ -283,23 +296,31 @@ class _AuthWrapperState extends State<AuthWrapper> {
     _runInBackground(() async {
       try {
         // Wait for app to be fully loaded and settled
-        await Future.delayed(Duration(seconds: 5));
+        await Future.delayed(const Duration(seconds: 5));
 
         if (!mounted) return;
 
-        print('🔄 Background update check starting...');
+        if (kDebugMode) {
+          print('🔄 Background update check starting...');
+        }
         final updateAvailable = await updateService.checkForUpdatesOnce(silent: true);
 
         if (updateAvailable && mounted) {
-          print('🔄 Update available! Showing subtle notification...');
+          if (kDebugMode) {
+            print('🔄 Update available! Showing subtle notification...');
+          }
 
           // Show subtle banner instead of blocking dialog
           _showUpdateBanner(updateService);
         } else {
-          print('🔄 No updates available or widget not mounted');
+          if (kDebugMode) {
+            print('🔄 No updates available or widget not mounted');
+          }
         }
       } catch (e) {
-        print('❌ Background update check failed: $e');
+        if (kDebugMode) {
+          print('❌ Background update check failed: $e');
+        }
       }
     });
   }
@@ -320,12 +341,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
     ScaffoldMessenger.of(context).showMaterialBanner(
       MaterialBanner(
         leading: Container(
-          padding: EdgeInsets.all(6),
+          padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: Colors.blue.shade600,
             borderRadius: BorderRadius.circular(6),
           ),
-          child: Icon(
+          child: const Icon(
             Icons.system_update,
             color: Colors.white,
             size: 20,
@@ -347,7 +368,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 fontSize: 15,
               ),
             ),
-            SizedBox(height: 2),
+            const SizedBox(height: 2),
             Text(
               'A new version is ready to download with improvements and bug fixes',
               style: TextStyle(
@@ -367,7 +388,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             style: TextButton.styleFrom(
               foregroundColor: Colors.blue.shade700,
             ),
-            child: Text('Later'),
+            child: const Text('Later'),
           ),
           ElevatedButton.icon(
             onPressed: () async {
@@ -375,7 +396,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
               _bannerTimer?.cancel();
 
               // Small delay to prevent any flash
-              await Future.delayed(Duration(milliseconds: 100));
+              await Future.delayed(const Duration(milliseconds: 100));
 
               if (mounted) {
                 await UpdateDialog.showUpdateCheckDialog(
@@ -385,13 +406,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 );
               }
             },
-            icon: Icon(Icons.download, size: 16),
-            label: Text('Update'),
+            icon: const Icon(Icons.download, size: 16),
+            label: const Text('Update'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue.shade600,
               foregroundColor: Colors.white,
               elevation: 0,
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
           ),
         ],
@@ -399,17 +420,21 @@ class _AuthWrapperState extends State<AuthWrapper> {
     );
 
     // Auto-hide the banner after 12 seconds
-    _bannerTimer = Timer(Duration(seconds: 12), () {
+    _bannerTimer = Timer(const Duration(seconds: 12), () {
       if (mounted) {
         try {
           ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
         } catch (e) {
-          print('Banner already hidden: $e');
+          if (kDebugMode) {
+            print('Banner already hidden: $e');
+          }
         }
       }
     });
 
-    print('✅ Update banner shown - will auto-hide in 12 seconds');
+    if (kDebugMode) {
+      print('✅ Update banner shown - will auto-hide in 12 seconds');
+    }
   }
 
   Future<void> ensureUserInFirestore(User user) async {
@@ -420,7 +445,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
       UserModel? existingUser = await dbService.getUser(user.uid);
 
       if (existingUser == null) {
-        print('User not in Firestore, creating: ${user.email}');
+        if (kDebugMode) {
+          print('User not in Firestore, creating: ${user.email}');
+        }
         // Create user in Firestore
         final userModel = UserModel.fromFirebaseUser(
           user.uid,
@@ -429,12 +456,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
           user.photoURL,
         );
         await dbService.createUser(userModel);
-        print('User created in Firestore successfully!');
+        if (kDebugMode) {
+          print('User created in Firestore successfully!');
+        }
       } else {
-        print('User already exists in Firestore: ${existingUser.email}');
+        if (kDebugMode) {
+          print('User already exists in Firestore: ${existingUser.email}');
+        }
       }
     } catch (e) {
-      print('Error ensuring user in Firestore: $e');
+      if (kDebugMode) {
+        print('Error ensuring user in Firestore: $e');
+      }
       // Don't block the UI for this
     }
   }

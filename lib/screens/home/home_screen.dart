@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../insights/smart_insights_screen.dart';
@@ -12,11 +13,10 @@ import '../groups/group_detail_screen.dart';
 import '../groups/groups_screen.dart';
 import '../home/settings_screen.dart';
 import '../search/search_screen.dart';
-import '../search/search_delegate.dart';
-import '../../dialogs/startup_update_dialog.dart';
-import '../../services/update_service.dart';
 
 class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
@@ -77,22 +77,30 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           setState(() {
             _userName = user.name;
           });
-          print('✅ Username loaded from database: ${user.name}');
+          if (kDebugMode) {
+            print('✅ Username loaded from database: ${user.name}');
+          }
         } else if (authService.currentUser!.displayName != null && authService.currentUser!.displayName!.isNotEmpty) {
           setState(() {
             _userName = authService.currentUser!.displayName;
           });
-          print('✅ Username loaded from Firebase Auth: ${authService.currentUser!.displayName}');
+          if (kDebugMode) {
+            print('✅ Username loaded from Firebase Auth: ${authService.currentUser!.displayName}');
+          }
         } else {
           String emailPrefix = authService.currentUser!.email?.split('@')[0] ?? 'User';
           setState(() {
             _userName = emailPrefix;
           });
-          print('✅ Username set to email prefix: $emailPrefix');
+          if (kDebugMode) {
+            print('✅ Username set to email prefix: $emailPrefix');
+          }
         }
       }
     } catch (e) {
-      print('❌ Error loading username: $e');
+      if (kDebugMode) {
+        print('❌ Error loading username: $e');
+      }
       setState(() {
         _userName = 'User';
       });
@@ -113,22 +121,32 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       List<GroupModel> groups = await _databaseService.streamUserGroups(_currentUserId).first;
       double totalBalance = 0.0;
 
-      print('🏠 === CALCULATING HOME SCREEN BALANCE ===');
-      print('🏠 User has ${groups.length} groups');
+      if (kDebugMode) {
+        print('🏠 === CALCULATING HOME SCREEN BALANCE ===');
+      }
+      if (kDebugMode) {
+        print('🏠 User has ${groups.length} groups');
+      }
 
       for (GroupModel group in groups) {
         try {
           Map<String, double> groupBalances = await _databaseService.calculateGroupBalancesWithSettlements(group.id);
           double userBalance = groupBalances[_currentUserId] ?? 0.0;
 
-          print('🏠 Group "${group.name}": User balance = €${userBalance.toStringAsFixed(2)}');
+          if (kDebugMode) {
+            print('🏠 Group "${group.name}": User balance = €${userBalance.toStringAsFixed(2)}');
+          }
           totalBalance += userBalance;
         } catch (e) {
-          print('❌ Error calculating balance for group ${group.id}: $e');
+          if (kDebugMode) {
+            print('❌ Error calculating balance for group ${group.id}: $e');
+          }
         }
       }
 
-      print('🏠 Total balance across all groups: €${totalBalance.toStringAsFixed(2)}');
+      if (kDebugMode) {
+        print('🏠 Total balance across all groups: €${totalBalance.toStringAsFixed(2)}');
+      }
 
       // Update cache
       _cachedBalance = totalBalance;
@@ -138,7 +156,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         _balanceController.add(totalBalance);
       }
     } catch (e) {
-      print('❌ Error refreshing balance: $e');
+      if (kDebugMode) {
+        print('❌ Error refreshing balance: $e');
+      }
       if (!_balanceController.isClosed) {
         _balanceController.add(0.0);
       }
@@ -182,8 +202,8 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               ),
             );
           },
-          transitionDuration: Duration(milliseconds: 350),
-          reverseTransitionDuration: Duration(milliseconds: 300),
+          transitionDuration: const Duration(milliseconds: 350),
+          reverseTransitionDuration: const Duration(milliseconds: 300),
         ),
       );
 
@@ -195,11 +215,11 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   // Quick search bar widget
   Widget _buildQuickSearchBar() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: GestureDetector(
         onTap: _openSearch,
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: Colors.grey.shade100,
             borderRadius: BorderRadius.circular(12),
@@ -208,7 +228,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           child: Row(
             children: [
               Icon(Icons.search, color: Colors.grey.shade600),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Text(
                 'Search groups and friends...',
                 style: TextStyle(
@@ -232,14 +252,14 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: animation.drive(
-              Tween(begin: Offset(1.0, 0.0), end: Offset.zero).chain(
+              Tween(begin: const Offset(1.0, 0.0), end: Offset.zero).chain(
                 CurveTween(curve: Curves.easeInOut),
               ),
             ),
             child: child,
           );
         },
-        transitionDuration: Duration(milliseconds: 250),
+        transitionDuration: const Duration(milliseconds: 250),
       ),
     );
 
@@ -253,11 +273,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     }
   }
 
-  void _refreshNotifications() {
-    if (mounted) {
-      setState(() {});
-    }
-  }
 
   void _showNotificationsDialog(BuildContext context, dynamic user) {
     showDialog(
@@ -266,24 +281,24 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         title: Row(
           children: [
             Icon(Icons.notifications, color: Colors.blue.shade500),
-            SizedBox(width: 8),
-            Text('Recent Activity'),
+            const SizedBox(width: 8),
+            const Text('Recent Activity'),
           ],
         ),
-        content: Container(
+        content: SizedBox(
           width: double.maxFinite,
           height: 300,
           child: StreamBuilder<List<GroupModel>>(
             stream: _databaseService.streamUserGroups(user.uid),
             builder: (context, groupSnapshot) {
               if (!groupSnapshot.hasData) {
-                return Center(child: CircularProgressIndicator());
+                return const Center(child: CircularProgressIndicator());
               }
 
               List<GroupModel> groups = groupSnapshot.data!;
 
               if (groups.isEmpty) {
-                return Center(
+                return const Center(
                   child: Text('No groups yet'),
                 );
               }
@@ -303,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                           backgroundColor: unreadCount > 0 ? Colors.red.shade500 : Colors.grey.shade400,
                           child: Text(
                             group.name.substring(0, 1).toUpperCase(),
-                            style: TextStyle(color: Colors.white),
+                            style: const TextStyle(color: Colors.white),
                           ),
                         ),
                         title: Text(group.name),
@@ -313,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                 : 'No new activity'
                         ),
                         trailing: unreadCount > 0
-                            ? Icon(Icons.fiber_manual_record, color: Colors.red, size: 12)
+                            ? const Icon(Icons.fiber_manual_record, color: Colors.red, size: 12)
                             : null,
                         onTap: () async {
                           Navigator.pop(context);
@@ -330,7 +345,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Close'),
+            child: const Text('Close'),
           ),
         ],
       ),
@@ -358,14 +373,14 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               )
                   : null,
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     friendBalance.friend.name,
-                    style: TextStyle(fontSize: 18),
+                    style: const TextStyle(fontSize: 18),
                   ),
                   Text(
                     friendBalance.balanceText,
@@ -386,11 +401,11 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           children: [
             Text(
               'Shared Groups (${friendBalance.sharedGroupsCount}):',
-              style: TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Container(
-              constraints: BoxConstraints(maxHeight: 200),
+              constraints: const BoxConstraints(maxHeight: 200),
               child: ListView.builder(
                 shrinkWrap: true,
                 itemCount: friendBalance.sharedGroupIds.length,
@@ -401,24 +416,24 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                     builder: (context, snapshot) {
                       if (snapshot.hasData && snapshot.data != null) {
                         return Padding(
-                          padding: EdgeInsets.symmetric(vertical: 2),
+                          padding: const EdgeInsets.symmetric(vertical: 2),
                           child: Row(
                             children: [
-                              Icon(Icons.group, size: 16, color: Colors.grey),
-                              SizedBox(width: 8),
+                              const Icon(Icons.group, size: 16, color: Colors.grey),
+                              const SizedBox(width: 8),
                               Expanded(child: Text(snapshot.data!.name)),
                               TextButton(
                                 onPressed: () {
                                   Navigator.pop(context);
                                   _navigateWithTransition(GroupDetailScreen(groupId: groupId));
                                 },
-                                child: Text('View'),
+                                child: const Text('View'),
                               ),
                             ],
                           ),
                         );
                       }
-                      return SizedBox.shrink();
+                      return const SizedBox.shrink();
                     },
                   );
                 },
@@ -429,7 +444,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Close'),
+            child: const Text('Close'),
           ),
         ],
       ),
@@ -439,7 +454,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   // Build the toggle buttons
   Widget _buildToggleButtons() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(25),
@@ -454,7 +469,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 });
               },
               child: Container(
-                padding: EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color: !_showingFriends ? Theme.of(context).primaryColor : Colors.transparent,
                   borderRadius: BorderRadius.circular(25),
@@ -467,7 +482,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                       color: !_showingFriends ? Colors.white : Colors.grey.shade600,
                       size: 20,
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text(
                       'Groups',
                       style: TextStyle(
@@ -488,7 +503,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 });
               },
               child: Container(
-                padding: EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color: _showingFriends ? Theme.of(context).primaryColor : Colors.transparent,
                   borderRadius: BorderRadius.circular(25),
@@ -501,7 +516,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                       color: _showingFriends ? Colors.white : Colors.grey.shade600,
                       size: 20,
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text(
                       'Friends',
                       style: TextStyle(
@@ -525,7 +540,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       stream: _databaseService.streamUserFriendsWithBalances(userId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator());
         }
 
         if (snapshot.hasError) {
@@ -533,13 +548,13 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.error, size: 48, color: Colors.red),
-                SizedBox(height: 16),
-                Text('Error loading friends'),
-                SizedBox(height: 16),
+                const Icon(Icons.error, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text('Error loading friends'),
+                const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () => setState(() {}),
-                  child: Text('Retry'),
+                  child: const Text('Retry'),
                 ),
               ],
             ),
@@ -558,7 +573,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                   size: 64,
                   color: Colors.grey.shade400,
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Text(
                   'No friends with balances yet',
                   style: TextStyle(
@@ -567,7 +582,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
                   'Add friends to groups to see\nyour balances with them',
                   textAlign: TextAlign.center,
@@ -581,13 +596,13 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         }
 
         return ListView.builder(
-          padding: EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           itemCount: friends.length,
           itemBuilder: (context, index) {
             FriendBalance friendBalance = friends[index];
 
             return Container(
-              margin: EdgeInsets.only(bottom: 12),
+              margin: const EdgeInsets.only(bottom: 12),
               child: Material(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
@@ -596,7 +611,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                   borderRadius: BorderRadius.circular(12),
                   onTap: () => _showFriendDetailsDialog(context, friendBalance),
                   child: Padding(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
                         CircleAvatar(
@@ -616,19 +631,19 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                           )
                               : null,
                         ),
-                        SizedBox(width: 16),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 friendBalance.friend.name,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 16,
                                 ),
                               ),
-                              SizedBox(height: 2),
+                              const SizedBox(height: 2),
                               Text(
                                 friendBalance.balanceText,
                                 style: TextStyle(
@@ -637,7 +652,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              SizedBox(height: 2),
+                              const SizedBox(height: 2),
                               Text(
                                 '${friendBalance.sharedGroupsCount} shared group${friendBalance.sharedGroupsCount != 1 ? 's' : ''}',
                                 style: TextStyle(
@@ -655,7 +670,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                               color: friendBalance.balanceColor,
                               size: 20,
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Icon(
                               Icons.arrow_forward_ios,
                               size: 14,
@@ -681,7 +696,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       children: [
         // Header with "New Group" button
         Padding(
-          padding: EdgeInsets.fromLTRB(24, 0, 24, 16),
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -695,10 +710,10 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               ),
               TextButton.icon(
                 onPressed: () {
-                  _navigateWithTransition(GroupsScreen());
+                  _navigateWithTransition(const GroupsScreen());
                 },
-                icon: Icon(Icons.add),
-                label: Text('New Group'),
+                icon: const Icon(Icons.add),
+                label: const Text('New Group'),
               ),
             ],
           ),
@@ -710,7 +725,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             stream: _databaseService.streamUserGroups(userId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return Center(child: CircularProgressIndicator());
+                return const Center(child: CircularProgressIndicator());
               }
 
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -723,7 +738,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         size: 64,
                         color: Colors.grey.shade400,
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       Text(
                         'No groups yet',
                         style: TextStyle(
@@ -732,7 +747,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
                         'Create your first group to start\nsplitting expenses with friends!',
                         textAlign: TextAlign.center,
@@ -740,17 +755,17 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                           color: Colors.grey.shade500,
                         ),
                       ),
-                      SizedBox(height: 24),
+                      const SizedBox(height: 24),
                       ElevatedButton.icon(
                         onPressed: () {
-                          _navigateWithTransition(GroupsScreen());
+                          _navigateWithTransition(const GroupsScreen());
                         },
-                        icon: Icon(Icons.add),
-                        label: Text('Create Group'),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Create Group'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue.shade500,
                           foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 24,
                             vertical: 12,
                           ),
@@ -763,14 +778,14 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
               List<GroupModel> groups = snapshot.data!;
               return ListView.builder(
-                padding: EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 itemCount: groups.length,
                 itemBuilder: (context, index) {
                   GroupModel group = groups[index];
                   return Hero(
                     tag: 'group_${group.id}',
                     child: Card(
-                      margin: EdgeInsets.only(bottom: 12),
+                      margin: const EdgeInsets.only(bottom: 12),
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: Theme.of(context).primaryColor,
@@ -786,12 +801,12 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         ),
                         title: Text(
                           group.name,
-                          style: TextStyle(fontWeight: FontWeight.w600),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         subtitle: Text(
                           '${group.memberIds.length} members • ${group.currency}',
                         ),
-                        trailing: Icon(Icons.arrow_forward_ios, size: 16),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                         onTap: () {
                           _navigateWithTransition(GroupDetailScreen(groupId: group.id));
                         },
@@ -811,20 +826,20 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   Widget _buildBiggerRightSideButton() {
     return TextButton(
       onPressed: () {
-        _navigateWithTransition(SmartInsightsScreen());
+        _navigateWithTransition(const SmartInsightsScreen());
       },
       style: TextButton.styleFrom(
         backgroundColor: Colors.white.withOpacity(0.15),
-        padding: EdgeInsets.symmetric(
+        padding: const EdgeInsets.symmetric(
             horizontal: 12,
             vertical: 8
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
-        minimumSize: Size(80, 36),
+        minimumSize: const Size(80, 36),
       ),
-      child: Row(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.auto_awesome, color: Colors.white, size: 16),
@@ -852,14 +867,14 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Spendwise'),
+        title: const Text('Spendwise'),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
         actions: [
           // Search icon
           IconButton(
-            icon: Icon(Icons.search),
+            icon: const Icon(Icons.search),
             onPressed: _openSearch,
             tooltip: 'Search',
           ),
@@ -873,24 +888,24 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               return IconButton(
                 icon: Stack(
                   children: [
-                    Icon(Icons.notifications_outlined),
+                    const Icon(Icons.notifications_outlined),
                     if (totalUnread > 0)
                       Positioned(
                         right: 0,
                         top: 0,
                         child: Container(
-                          padding: EdgeInsets.all(2),
+                          padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
                             color: Colors.red,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          constraints: BoxConstraints(
+                          constraints: const BoxConstraints(
                             minWidth: 16,
                             minHeight: 16,
                           ),
                           child: Text(
                             totalUnread > 99 ? '99+' : totalUnread.toString(),
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
@@ -906,7 +921,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 },
               );
             },
-          ) : SizedBox.shrink(),
+          ) : const SizedBox.shrink(),
 
           // Theme toggle
           Consumer<ThemeService>(
@@ -921,7 +936,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
           // Settings
           IconButton(
-            icon: Icon(Icons.settings),
+            icon: const Icon(Icons.settings),
             onPressed: () {
               _navigateWithTransition(SettingsScreen());
             },
@@ -930,7 +945,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         ],
       ),
       body: user == null
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : Column(
         children: [
           // Balance Header - BUTTON STAYS ON THE RIGHT BUT BIGGER
@@ -938,12 +953,12 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             width: double.infinity,
             decoration: BoxDecoration(
               color: Theme.of(context).primaryColor,
-              borderRadius: BorderRadius.only(
+              borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(20),
                 bottomRight: Radius.circular(20),
               ),
             ),
-            padding: EdgeInsets.fromLTRB(24, 0, 24, 24),
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -958,21 +973,21 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 ),
                 Text(
                   _userName ?? user.displayName ?? user.email?.split('@')[0] ?? 'User',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 StreamBuilder<double>(
                   stream: _balanceController.stream,
                   initialData: _cachedBalance ?? 0.0,
                   builder: (context, balanceSnapshot) {
                     return Container(
-                      padding: EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -980,8 +995,8 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Icon(Icons.account_balance_wallet, color: Colors.white),
-                          SizedBox(width: 12),
+                          const Icon(Icons.account_balance_wallet, color: Colors.white),
+                          const SizedBox(width: 12),
                           // Balance info - takes less space to give button more room
                           Expanded(
                             flex: 1, // Reduced from 3 to 2
@@ -1002,7 +1017,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                     balanceSnapshot.hasData
                                         ? '€${balanceSnapshot.data!.toStringAsFixed(2)}'
                                         : '€0.00',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
@@ -1024,7 +1039,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                               ],
                             ),
                           ),
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                           // Smart Insights button - more space allocated
                           Expanded(
                             flex: 1, // More generous space allocation

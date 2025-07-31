@@ -1,8 +1,8 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/activity_log_model.dart';
-import '../models/user_model.dart';
 import '../services/database_service.dart';
 
 class NotificationService extends ChangeNotifier {
@@ -53,7 +53,9 @@ class NotificationService extends ChangeNotifier {
     await _initializeFirebaseMessaging();
     await _loadNotificationPreferences();
 
-    print('✅ Simple Notification Service initialized');
+    if (kDebugMode) {
+      print('✅ Simple Notification Service initialized');
+    }
   }
 
   Future<void> _initializeFirebaseMessaging() async {
@@ -69,11 +71,15 @@ class NotificationService extends ChangeNotifier {
       );
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        print('✅ Firebase Messaging permissions granted');
+        if (kDebugMode) {
+          print('✅ Firebase Messaging permissions granted');
+        }
 
         // Get FCM token
         _fcmToken = await _firebaseMessaging.getToken();
-        print('📱 FCM Token: $_fcmToken');
+        if (kDebugMode) {
+          print('📱 FCM Token: $_fcmToken');
+        }
 
         // Handle foreground messages
         FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
@@ -90,18 +96,26 @@ class NotificationService extends ChangeNotifier {
         // Listen for token refresh
         _firebaseMessaging.onTokenRefresh.listen((newToken) {
           _fcmToken = newToken;
-          print('🔄 FCM Token refreshed: $newToken');
+          if (kDebugMode) {
+            print('🔄 FCM Token refreshed: $newToken');
+          }
         });
       } else {
-        print('❌ Firebase Messaging permissions denied');
+        if (kDebugMode) {
+          print('❌ Firebase Messaging permissions denied');
+        }
       }
     } catch (e) {
-      print('❌ Error initializing Firebase Messaging: $e');
+      if (kDebugMode) {
+        print('❌ Error initializing Firebase Messaging: $e');
+      }
     }
   }
 
   void _handleForegroundMessage(RemoteMessage message) {
-    print('🔔 Foreground Firebase message received: ${message.notification?.title}');
+    if (kDebugMode) {
+      print('🔔 Foreground Firebase message received: ${message.notification?.title}');
+    }
     _showInAppNotification(
       title: message.notification?.title ?? 'Notification',
       body: message.notification?.body ?? '',
@@ -110,7 +124,9 @@ class NotificationService extends ChangeNotifier {
   }
 
   void _handleBackgroundMessage(RemoteMessage message) {
-    print('🔔 Background Firebase message received: ${message.notification?.title}');
+    if (kDebugMode) {
+      print('🔔 Background Firebase message received: ${message.notification?.title}');
+    }
     final data = message.data;
     if (data['groupId'] != null) {
       _navigateToActivityLog(data['groupId']);
@@ -118,7 +134,9 @@ class NotificationService extends ChangeNotifier {
   }
 
   void _navigateToActivityLog(String groupId) {
-    print('🚀 Navigating to activity log for group: $groupId');
+    if (kDebugMode) {
+      print('🚀 Navigating to activity log for group: $groupId');
+    }
 
     if (_navigatorKey?.currentState != null) {
       _navigatorKey!.currentState!.pushNamed(
@@ -143,14 +161,18 @@ class NotificationService extends ChangeNotifier {
 
       // Check if this type of notification is enabled
       if (!_isNotificationTypeEnabled(activity.type)) {
-        print('📵 Notification disabled for type: ${activity.type}');
+        if (kDebugMode) {
+          print('📵 Notification disabled for type: ${activity.type}');
+        }
         return;
       }
 
       // Get group details
       final group = await _databaseService.getGroup(activity.groupId);
       if (group == null) {
-        print('❌ Group not found for notification');
+        if (kDebugMode) {
+          print('❌ Group not found for notification');
+        }
         return;
       }
 
@@ -166,9 +188,13 @@ class NotificationService extends ChangeNotifier {
         activityType: activity.type,
       );
 
-      print('✅ In-app notification shown for: ${activity.description}');
+      if (kDebugMode) {
+        print('✅ In-app notification shown for: ${activity.description}');
+      }
     } catch (e) {
-      print('❌ Error sending activity notification: $e');
+      if (kDebugMode) {
+        print('❌ Error sending activity notification: $e');
+      }
     }
   }
 
@@ -207,7 +233,7 @@ class NotificationService extends ChangeNotifier {
           elevation: 8,
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(12),
@@ -230,10 +256,10 @@ class NotificationService extends ChangeNotifier {
                     radius: 20,
                     child: Text(
                       _getNotificationIcon(notification.activityType),
-                      style: TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 16),
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,14 +267,14 @@ class NotificationService extends ChangeNotifier {
                       children: [
                         Text(
                           notification.title,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
                           notification.body,
                           style: TextStyle(
@@ -277,7 +303,7 @@ class NotificationService extends ChangeNotifier {
     overlay.insert(overlayEntry);
 
     // Auto-remove after 4 seconds
-    Future.delayed(Duration(seconds: 4), () {
+    Future.delayed(const Duration(seconds: 4), () {
       if (overlayEntry.mounted) {
         overlayEntry.remove();
       }
@@ -353,7 +379,9 @@ class NotificationService extends ChangeNotifier {
       groupId: 'test_group',
       activityType: ActivityType.other,
     );
-    print('🧪 Test in-app notification shown');
+    if (kDebugMode) {
+      print('🧪 Test in-app notification shown');
+    }
   }
 
   // Notification preference methods (unchanged)

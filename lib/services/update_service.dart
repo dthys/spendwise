@@ -44,30 +44,40 @@ class UpdateService extends ChangeNotifier {
       // Validate token is configured
       if (_githubToken.isEmpty || _githubToken == 'YOUR_NEW_GITHUB_TOKEN_HERE') {
         _lastError = 'GitHub token not configured';
-        print('❌ $_lastError - Please configure your GitHub token in app_config.dart');
+        if (kDebugMode) {
+          print('❌ $_lastError - Please configure your GitHub token in app_config.dart');
+        }
         return;
       }
 
       final packageInfo = await PackageInfo.fromPlatform();
       _currentVersion = packageInfo.version;
-      print('🔧 Initialized UpdateService - Current version: $_currentVersion');
+      if (kDebugMode) {
+        print('🔧 Initialized UpdateService - Current version: $_currentVersion');
+      }
       notifyListeners();
     } catch (e) {
       _lastError = 'Error getting package info: $e';
-      print('❌ $_lastError');
+      if (kDebugMode) {
+        print('❌ $_lastError');
+      }
     }
   }
 
   /// Check for updates only if not already checked this session
   Future<bool> checkForUpdatesOnce({bool silent = false}) async {
     if (_hasCheckedThisSession) {
-      print('🔄 Update already checked this session, skipping...');
+      if (kDebugMode) {
+        print('🔄 Update already checked this session, skipping...');
+      }
       return _updateAvailable;
     }
 
     final result = await checkForUpdates(silent: silent);
     _hasCheckedThisSession = true;
-    print('✅ First update check completed for this session');
+    if (kDebugMode) {
+      print('✅ First update check completed for this session');
+    }
     return result;
   }
 
@@ -86,7 +96,9 @@ class UpdateService extends ChangeNotifier {
     if (!silent) notifyListeners();
 
     try {
-      print('🔍 Checking for updates with authentication...');
+      if (kDebugMode) {
+        print('🔍 Checking for updates with authentication...');
+      }
 
       // Enhanced headers with authentication
       final headers = {
@@ -99,17 +111,23 @@ class UpdateService extends ChangeNotifier {
       final response = await http.get(
         Uri.parse(_githubApiUrl),
         headers: headers,
-      ).timeout(Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 15));
 
-      print('🌐 GitHub API response status: ${response.statusCode}');
+      if (kDebugMode) {
+        print('🌐 GitHub API response status: ${response.statusCode}');
+      }
 
       // Check rate limit headers for debugging
       final rateLimitRemaining = response.headers['x-ratelimit-remaining'];
       final rateLimitReset = response.headers['x-ratelimit-reset'];
-      print('🔢 Rate limit remaining: $rateLimitRemaining');
+      if (kDebugMode) {
+        print('🔢 Rate limit remaining: $rateLimitRemaining');
+      }
       if (rateLimitReset != null) {
         final resetTime = DateTime.fromMillisecondsSinceEpoch(int.parse(rateLimitReset) * 1000);
-        print('⏰ Rate limit resets at: $resetTime');
+        if (kDebugMode) {
+          print('⏰ Rate limit resets at: $resetTime');
+        }
       }
 
       if (response.statusCode == 200) {
@@ -118,12 +136,18 @@ class UpdateService extends ChangeNotifier {
         _latestVersion = data['tag_name']?.toString().replaceFirst('v', '') ?? data['name'];
         _releaseNotes = data['body'] ?? 'No release notes available';
 
-        print('📦 Latest version from GitHub: $_latestVersion');
-        print('📝 Release notes length: ${_releaseNotes?.length ?? 0} characters');
+        if (kDebugMode) {
+          print('📦 Latest version from GitHub: $_latestVersion');
+        }
+        if (kDebugMode) {
+          print('📝 Release notes length: ${_releaseNotes?.length ?? 0} characters');
+        }
 
         // Find APK download URL with better debugging
         final assets = data['assets'] as List?;
-        print('📎 Found ${assets?.length ?? 0} assets');
+        if (kDebugMode) {
+          print('📎 Found ${assets?.length ?? 0} assets');
+        }
 
         if (assets != null && assets.isNotEmpty) {
           for (int i = 0; i < assets.length; i++) {
@@ -132,12 +156,18 @@ class UpdateService extends ChangeNotifier {
             final downloadUrl = asset['browser_download_url']?.toString() ?? '';
             final size = asset['size'] ?? 0;
 
-            print('📎 Asset $i: $name (${size} bytes)');
+            if (kDebugMode) {
+              print('📎 Asset $i: $name ($size bytes)');
+            }
 
             if (name.toLowerCase().endsWith('.apk')) {
               _downloadUrl = downloadUrl;
-              print('✅ Found APK: $name');
-              print('🔗 Download URL: $downloadUrl');
+              if (kDebugMode) {
+                print('✅ Found APK: $name');
+              }
+              if (kDebugMode) {
+                print('🔗 Download URL: $downloadUrl');
+              }
               break;
             }
           }
@@ -145,16 +175,22 @@ class UpdateService extends ChangeNotifier {
 
         if (_downloadUrl == null) {
           _lastError = 'No APK file found in release assets';
-          print('❌ $_lastError');
+          if (kDebugMode) {
+            print('❌ $_lastError');
+          }
         }
 
         // Compare versions
         if (_currentVersion != null && _latestVersion != null) {
           _updateAvailable = _isNewerVersion(_latestVersion!, _currentVersion!);
-          print('🔄 Version comparison: $_currentVersion -> $_latestVersion = $_updateAvailable');
+          if (kDebugMode) {
+            print('🔄 Version comparison: $_currentVersion -> $_latestVersion = $_updateAvailable');
+          }
         }
 
-        print('✅ Update check completed - Latest: $_latestVersion, Current: $_currentVersion, Available: $_updateAvailable');
+        if (kDebugMode) {
+          print('✅ Update check completed - Latest: $_latestVersion, Current: $_currentVersion, Available: $_updateAvailable');
+        }
 
       } else if (response.statusCode == 403) {
         // Handle rate limit or authentication issues
@@ -164,17 +200,25 @@ class UpdateService extends ChangeNotifier {
 
           if (message.contains('rate limit')) {
             _lastError = 'GitHub rate limit exceeded. Please try again later.';
-            print('⏰ $_lastError');
+            if (kDebugMode) {
+              print('⏰ $_lastError');
+            }
           } else if (message.contains('Bad credentials')) {
             _lastError = 'GitHub authentication failed. Please check your token.';
-            print('🔑 $_lastError');
+            if (kDebugMode) {
+              print('🔑 $_lastError');
+            }
           } else {
             _lastError = 'GitHub API error: $message';
-            print('❌ $_lastError');
+            if (kDebugMode) {
+              print('❌ $_lastError');
+            }
           }
         } catch (e) {
           _lastError = 'Failed to check for updates: HTTP ${response.statusCode}';
-          print('❌ $_lastError');
+          if (kDebugMode) {
+            print('❌ $_lastError');
+          }
         }
 
         // Don't throw exception for rate limits, just return false
@@ -182,19 +226,27 @@ class UpdateService extends ChangeNotifier {
 
       } else if (response.statusCode == 401) {
         _lastError = 'GitHub authentication failed. Please check your token.';
-        print('🔑 $_lastError');
+        if (kDebugMode) {
+          print('🔑 $_lastError');
+        }
         return false;
 
       } else {
         _lastError = 'Failed to check for updates: HTTP ${response.statusCode}';
-        print('❌ $_lastError');
-        print('📝 Response body: ${response.body}');
+        if (kDebugMode) {
+          print('❌ $_lastError');
+        }
+        if (kDebugMode) {
+          print('📝 Response body: ${response.body}');
+        }
         throw Exception(_lastError);
       }
 
     } catch (e) {
       _lastError = 'Error checking for updates: $e';
-      print('❌ $_lastError');
+      if (kDebugMode) {
+        print('❌ $_lastError');
+      }
       _updateAvailable = false;
     } finally {
       _isCheckingForUpdate = false;
@@ -207,34 +259,54 @@ class UpdateService extends ChangeNotifier {
   /// Compare version strings (enhanced debugging)
   bool _isNewerVersion(String latestVersion, String currentVersion) {
     try {
-      print('🔍 Comparing versions: $currentVersion vs $latestVersion');
+      if (kDebugMode) {
+        print('🔍 Comparing versions: $currentVersion vs $latestVersion');
+      }
 
       final latest = latestVersion.split('.').map((s) => int.tryParse(s) ?? 0).toList();
       final current = currentVersion.split('.').map((s) => int.tryParse(s) ?? 0).toList();
 
-      print('📊 Parsed latest: $latest');
-      print('📊 Parsed current: $current');
+      if (kDebugMode) {
+        print('📊 Parsed latest: $latest');
+      }
+      if (kDebugMode) {
+        print('📊 Parsed current: $current');
+      }
 
       // Ensure both have same length by padding with zeros
-      while (latest.length < 3) latest.add(0);
-      while (current.length < 3) current.add(0);
+      while (latest.length < 3) {
+        latest.add(0);
+      }
+      while (current.length < 3) {
+        current.add(0);
+      }
 
       for (int i = 0; i < 3; i++) {
-        print('🔢 Comparing part $i: ${current[i]} vs ${latest[i]}');
+        if (kDebugMode) {
+          print('🔢 Comparing part $i: ${current[i]} vs ${latest[i]}');
+        }
         if (latest[i] > current[i]) {
-          print('✅ Newer version detected');
+          if (kDebugMode) {
+            print('✅ Newer version detected');
+          }
           return true;
         }
         if (latest[i] < current[i]) {
-          print('⏪ Older version');
+          if (kDebugMode) {
+            print('⏪ Older version');
+          }
           return false;
         }
       }
-      print('🟰 Same version');
+      if (kDebugMode) {
+        print('🟰 Same version');
+      }
       return false;
     } catch (e) {
       _lastError = 'Error comparing versions: $e';
-      print('❌ $_lastError');
+      if (kDebugMode) {
+        print('❌ $_lastError');
+      }
       return false;
     }
   }
@@ -242,10 +314,14 @@ class UpdateService extends ChangeNotifier {
   /// Check and request necessary permissions
   Future<bool> checkPermissions() async {
     try {
-      print('🔒 Checking permissions...');
+      if (kDebugMode) {
+        print('🔒 Checking permissions...');
+      }
 
       if (!Platform.isAndroid) {
-        print('✅ Not Android, skipping permission checks');
+        if (kDebugMode) {
+          print('✅ Not Android, skipping permission checks');
+        }
         return true;
       }
 
@@ -253,20 +329,30 @@ class UpdateService extends ChangeNotifier {
       final deviceInfo = DeviceInfoPlugin();
       final androidInfo = await deviceInfo.androidInfo;
       final sdkInt = androidInfo.version.sdkInt;
-      print('📱 Android SDK: $sdkInt');
+      if (kDebugMode) {
+        print('📱 Android SDK: $sdkInt');
+      }
 
       // For Android 13+ (API 33+), we need different approach
       if (sdkInt >= 33) {
-        print('📱 Android 13+ detected - checking install permission only');
+        if (kDebugMode) {
+          print('📱 Android 13+ detected - checking install permission only');
+        }
 
         // Only need install packages permission for Android 13+
         final installStatus = await Permission.requestInstallPackages.status;
-        print('📦 Install packages permission status: $installStatus');
+        if (kDebugMode) {
+          print('📦 Install packages permission status: $installStatus');
+        }
 
         if (!installStatus.isGranted) {
-          print('📦 Requesting install packages permission...');
+          if (kDebugMode) {
+            print('📦 Requesting install packages permission...');
+          }
           final result = await Permission.requestInstallPackages.request();
-          print('📦 Install packages after request: $result');
+          if (kDebugMode) {
+            print('📦 Install packages after request: $result');
+          }
           return result.isGranted;
         }
         return true;
@@ -274,27 +360,37 @@ class UpdateService extends ChangeNotifier {
 
       // For Android 11-12 (API 30-32)
       else if (sdkInt >= 30) {
-        print('📱 Android 11-12 detected - checking storage and install permissions');
+        if (kDebugMode) {
+          print('📱 Android 11-12 detected - checking storage and install permissions');
+        }
 
         // Check both permissions
         final installStatus = await Permission.requestInstallPackages.status;
         final storageStatus = await Permission.manageExternalStorage.status;
 
-        print('📦 Install packages permission status: $installStatus');
-        print('📁 Manage external storage status: $storageStatus');
+        if (kDebugMode) {
+          print('📦 Install packages permission status: $installStatus');
+        }
+        if (kDebugMode) {
+          print('📁 Manage external storage status: $storageStatus');
+        }
 
         bool needsInstallPermission = !installStatus.isGranted;
         bool needsStoragePermission = !storageStatus.isGranted;
 
         if (needsInstallPermission) {
           final result = await Permission.requestInstallPackages.request();
-          print('📦 Install packages after request: $result');
+          if (kDebugMode) {
+            print('📦 Install packages after request: $result');
+          }
           needsInstallPermission = !result.isGranted;
         }
 
         if (needsStoragePermission) {
           final result = await Permission.manageExternalStorage.request();
-          print('📁 Manage external storage after request: $result');
+          if (kDebugMode) {
+            print('📁 Manage external storage after request: $result');
+          }
           needsStoragePermission = !result.isGranted;
         }
 
@@ -303,26 +399,36 @@ class UpdateService extends ChangeNotifier {
 
       // For Android 10 and below (API 29-)
       else {
-        print('📱 Android 10- detected - checking storage and install permissions');
+        if (kDebugMode) {
+          print('📱 Android 10- detected - checking storage and install permissions');
+        }
 
         final installStatus = await Permission.requestInstallPackages.status;
         final storageStatus = await Permission.storage.status;
 
-        print('📦 Install packages permission status: $installStatus');
-        print('📁 Storage permission status: $storageStatus');
+        if (kDebugMode) {
+          print('📦 Install packages permission status: $installStatus');
+        }
+        if (kDebugMode) {
+          print('📁 Storage permission status: $storageStatus');
+        }
 
         bool needsInstallPermission = !installStatus.isGranted;
         bool needsStoragePermission = !storageStatus.isGranted;
 
         if (needsInstallPermission) {
           final result = await Permission.requestInstallPackages.request();
-          print('📦 Install packages after request: $result');
+          if (kDebugMode) {
+            print('📦 Install packages after request: $result');
+          }
           needsInstallPermission = !result.isGranted;
         }
 
         if (needsStoragePermission) {
           final result = await Permission.storage.request();
-          print('📁 Storage after request: $result');
+          if (kDebugMode) {
+            print('📁 Storage after request: $result');
+          }
           needsStoragePermission = !result.isGranted;
         }
 
@@ -331,8 +437,12 @@ class UpdateService extends ChangeNotifier {
 
     } catch (e) {
       _lastError = 'Error checking permissions: $e';
-      print('❌ $_lastError');
-      print('❌ Stack trace: ${StackTrace.current}');
+      if (kDebugMode) {
+        print('❌ $_lastError');
+      }
+      if (kDebugMode) {
+        print('❌ Stack trace: ${StackTrace.current}');
+      }
       return false;
     }
   }
@@ -342,14 +452,18 @@ class UpdateService extends ChangeNotifier {
   Future<String?> downloadUpdateWithProgress() async {
     if (_downloadUrl == null || _isDownloading) {
       _lastError = _downloadUrl == null ? 'No download URL available' : 'Already downloading';
-      print('❌ $_lastError');
+      if (kDebugMode) {
+        print('❌ $_lastError');
+      }
       return null;
     }
 
     // Check permissions first
     if (!await checkPermissions()) {
       _lastError = 'Required permissions not granted';
-      print('❌ $_lastError');
+      if (kDebugMode) {
+        print('❌ $_lastError');
+      }
       return null;
     }
 
@@ -359,7 +473,9 @@ class UpdateService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      print('📥 Starting PRIVATE REPO download...');
+      if (kDebugMode) {
+        print('📥 Starting PRIVATE REPO download...');
+      }
 
       // For private repos, we need to get the asset ID and use the API
       int? assetId = await _getAssetId();
@@ -367,7 +483,9 @@ class UpdateService extends ChangeNotifier {
         throw Exception('Could not find APK asset ID');
       }
 
-      print('📥 Using GitHub Asset API with ID: $assetId');
+      if (kDebugMode) {
+        print('📥 Using GitHub Asset API with ID: $assetId');
+      }
 
       // Use GitHub Assets API for private repos
       final apiUrl = 'https://api.github.com/repos/dthys/spendwise/releases/assets/$assetId';
@@ -381,10 +499,14 @@ class UpdateService extends ChangeNotifier {
       });
 
       final client = http.Client();
-      final response = await client.send(request).timeout(Duration(seconds: 30));
+      final response = await client.send(request).timeout(const Duration(seconds: 30));
 
-      print('📥 API Download response status: ${response.statusCode}');
-      print('📥 Content-Type: ${response.headers['content-type']}');
+      if (kDebugMode) {
+        print('📥 API Download response status: ${response.statusCode}');
+      }
+      if (kDebugMode) {
+        print('📥 Content-Type: ${response.headers['content-type']}');
+      }
 
       if (response.statusCode == 200) {
         // Verify we got binary content, not JSON/HTML
@@ -402,19 +524,25 @@ class UpdateService extends ChangeNotifier {
           throw Exception('Could not access storage directory');
         }
 
-        final fileName = 'spendwise_${_latestVersion}.apk';
+        final fileName = 'spendwise_$_latestVersion.apk';
         final filePath = '${directory.path}/$fileName';
         final file = File(filePath);
 
-        print('📁 Download path: $filePath');
+        if (kDebugMode) {
+          print('📁 Download path: $filePath');
+        }
 
         if (await file.exists()) {
           await file.delete();
-          print('🗑️ Deleted existing file');
+          if (kDebugMode) {
+            print('🗑️ Deleted existing file');
+          }
         }
 
         final contentLength = response.contentLength ?? 0;
-        print('📊 Content length: $contentLength bytes');
+        if (kDebugMode) {
+          print('📊 Content length: $contentLength bytes');
+        }
 
         int downloadedBytes = 0;
         final sink = file.openWrite();
@@ -431,7 +559,9 @@ class UpdateService extends ChangeNotifier {
             }
 
             if (downloadedBytes % (512 * 1024) < chunk.length) { // Log every 512KB
-              print('📊 Downloaded: ${(downloadedBytes / 1024 / 1024).toStringAsFixed(1)} MB');
+              if (kDebugMode) {
+                print('📊 Downloaded: ${(downloadedBytes / 1024 / 1024).toStringAsFixed(1)} MB');
+              }
             }
 
             notifyListeners();
@@ -446,7 +576,9 @@ class UpdateService extends ChangeNotifier {
 
           if (await file.exists()) {
             final fileSize = await file.length();
-            print('✅ APK downloaded successfully - Size: $fileSize bytes');
+            if (kDebugMode) {
+              print('✅ APK downloaded successfully - Size: $fileSize bytes');
+            }
 
             if (fileSize > 1024) { // APK should be at least 1KB
               return filePath;
@@ -463,7 +595,7 @@ class UpdateService extends ChangeNotifier {
           if (await file.exists()) {
             await file.delete();
           }
-          throw e;
+          rethrow;
         }
 
       } else if (response.statusCode == 404) {
@@ -479,7 +611,9 @@ class UpdateService extends ChangeNotifier {
 
     } catch (e) {
       _lastError = 'Download failed: $e';
-      print('❌ $_lastError');
+      if (kDebugMode) {
+        print('❌ $_lastError');
+      }
       return null;
     } finally {
       _isDownloading = false;
@@ -490,7 +624,9 @@ class UpdateService extends ChangeNotifier {
   /// Get the asset ID for the APK file from the latest release
   Future<int?> _getAssetId() async {
     try {
-      print('🔍 Getting asset ID from GitHub API...');
+      if (kDebugMode) {
+        print('🔍 Getting asset ID from GitHub API...');
+      }
 
       final headers = {
         'Accept': 'application/vnd.github.v3+json',
@@ -502,7 +638,7 @@ class UpdateService extends ChangeNotifier {
       final response = await http.get(
         Uri.parse(_githubApiUrl),
         headers: headers,
-      ).timeout(Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -513,79 +649,27 @@ class UpdateService extends ChangeNotifier {
             final name = asset['name']?.toString() ?? '';
             if (name.toLowerCase().endsWith('.apk')) {
               final assetId = asset['id'];
-              print('✅ Found APK asset: $name (ID: $assetId)');
+              if (kDebugMode) {
+                print('✅ Found APK asset: $name (ID: $assetId)');
+              }
               return assetId;
             }
           }
         }
       } else {
-        print('❌ GitHub API error: ${response.statusCode}');
-        print('Response: ${response.body}');
-      }
-
-      return null;
-    } catch (e) {
-      print('❌ Error getting asset ID: $e');
-      return null;
-    }
-  }
-  /// Get the actual download URL using GitHub API
-  Future<String?> _getActualDownloadUrl() async {
-    try {
-      print('🔍 Getting actual download URL from GitHub API...');
-
-      // Use the GitHub API to get release assets
-      final headers = {
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Spendwise-App/1.0',
-        'X-GitHub-Api-Version': '2022-11-28',
-      };
-
-      // Add auth if available
-      if (_githubToken.isNotEmpty && _githubToken != 'YOUR_NEW_GITHUB_TOKEN_HERE') {
-        headers['Authorization'] = 'Bearer $_githubToken';
-      }
-
-      final response = await http.get(
-        Uri.parse(_githubApiUrl),
-        headers: headers,
-      ).timeout(Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final assets = data['assets'] as List?;
-
-        if (assets != null && assets.isNotEmpty) {
-          for (final asset in assets) {
-            final name = asset['name']?.toString() ?? '';
-            if (name.toLowerCase().endsWith('.apk')) {
-              // Try different URL formats
-              final browserDownloadUrl = asset['browser_download_url']?.toString();
-              final url = asset['url']?.toString(); // API URL
-
-              print('📎 Found APK asset: $name');
-              print('🔗 Browser download URL: $browserDownloadUrl');
-              print('🔗 API URL: $url');
-
-              // For public repos, try browser_download_url with proper headers
-              if (browserDownloadUrl != null) {
-                return browserDownloadUrl;
-              }
-
-              // Fallback to API URL with Accept header
-              if (url != null) {
-                return url;
-              }
-            }
-          }
+        if (kDebugMode) {
+          print('❌ GitHub API error: ${response.statusCode}');
+        }
+        if (kDebugMode) {
+          print('Response: ${response.body}');
         }
       }
 
-      print('❌ Could not find APK asset in GitHub response');
       return null;
-
     } catch (e) {
-      print('❌ Error getting actual download URL: $e');
+      if (kDebugMode) {
+        print('❌ Error getting asset ID: $e');
+      }
       return null;
     }
   }
@@ -597,11 +681,15 @@ class UpdateService extends ChangeNotifier {
       if (externalDir != null) {
         final downloadsDir = Directory('${externalDir.path}/downloads');
         await downloadsDir.create(recursive: true);
-        print('📁 Using external storage: ${downloadsDir.path}');
+        if (kDebugMode) {
+          print('📁 Using external storage: ${downloadsDir.path}');
+        }
         return downloadsDir;
       }
     } catch (e) {
-      print('⚠️ External storage not available: $e');
+      if (kDebugMode) {
+        print('⚠️ External storage not available: $e');
+      }
     }
 
     try {
@@ -609,19 +697,27 @@ class UpdateService extends ChangeNotifier {
       final appDir = await getApplicationDocumentsDirectory();
       final downloadsDir = Directory('${appDir.path}/downloads');
       await downloadsDir.create(recursive: true);
-      print('📁 Using app documents: ${downloadsDir.path}');
+      if (kDebugMode) {
+        print('📁 Using app documents: ${downloadsDir.path}');
+      }
       return downloadsDir;
     } catch (e) {
-      print('❌ Could not access app documents: $e');
+      if (kDebugMode) {
+        print('❌ Could not access app documents: $e');
+      }
     }
 
     try {
       // Last resort - temporary directory
       final tempDir = await getTemporaryDirectory();
-      print('📁 Using temporary directory: ${tempDir.path}');
+      if (kDebugMode) {
+        print('📁 Using temporary directory: ${tempDir.path}');
+      }
       return tempDir;
     } catch (e) {
-      print('❌ Could not access temporary directory: $e');
+      if (kDebugMode) {
+        print('❌ Could not access temporary directory: $e');
+      }
     }
 
     return null;
@@ -630,37 +726,51 @@ class UpdateService extends ChangeNotifier {
   /// Enhanced installation with better debugging
   Future<bool> installUpdate(String apkPath) async {
     try {
-      print('📱 Starting APK installation from: $apkPath');
+      if (kDebugMode) {
+        print('📱 Starting APK installation from: $apkPath');
+      }
 
       if (!Platform.isAndroid) {
         _lastError = 'Installation only supported on Android';
-        print('❌ $_lastError');
+        if (kDebugMode) {
+          print('❌ $_lastError');
+        }
         return false;
       }
 
       final file = File(apkPath);
       if (!await file.exists()) {
         _lastError = 'APK file does not exist: $apkPath';
-        print('❌ $_lastError');
+        if (kDebugMode) {
+          print('❌ $_lastError');
+        }
         return false;
       }
 
       final fileSize = await file.length();
-      print('📊 APK file size: $fileSize bytes');
+      if (kDebugMode) {
+        print('📊 APK file size: $fileSize bytes');
+      }
 
       if (fileSize == 0) {
         _lastError = 'APK file is empty';
-        print('❌ $_lastError');
+        if (kDebugMode) {
+          print('❌ $_lastError');
+        }
         return false;
       }
 
       // Check permissions again before installation
       final hasInstallPermission = await Permission.requestInstallPackages.isGranted;
-      print('📦 Install permission granted: $hasInstallPermission');
+      if (kDebugMode) {
+        print('📦 Install permission granted: $hasInstallPermission');
+      }
 
       if (!hasInstallPermission) {
         _lastError = 'Install packages permission not granted';
-        print('❌ $_lastError');
+        if (kDebugMode) {
+          print('❌ $_lastError');
+        }
         return false;
       }
 
@@ -668,8 +778,12 @@ class UpdateService extends ChangeNotifier {
       final deviceInfo = DeviceInfoPlugin();
       final androidInfo = await deviceInfo.androidInfo;
       final sdkInt = androidInfo.version.sdkInt;
-      print('📱 Android SDK: $sdkInt');
-      print('📱 Android version: ${androidInfo.version.release}');
+      if (kDebugMode) {
+        print('📱 Android SDK: $sdkInt');
+      }
+      if (kDebugMode) {
+        print('📱 Android version: ${androidInfo.version.release}');
+      }
 
       // Try multiple installation approaches
       bool installed = false;
@@ -690,24 +804,32 @@ class UpdateService extends ChangeNotifier {
       }
 
       if (installed) {
-        print('✅ Installation intent launched successfully');
+        if (kDebugMode) {
+          print('✅ Installation intent launched successfully');
+        }
       } else {
         _lastError = 'All installation methods failed';
-        print('❌ $_lastError');
+        if (kDebugMode) {
+          print('❌ $_lastError');
+        }
       }
 
       return installed;
 
     } catch (e) {
       _lastError = 'Error installing update: $e';
-      print('❌ $_lastError');
+      if (kDebugMode) {
+        print('❌ $_lastError');
+      }
       return false;
     }
   }
 
   Future<bool> _tryInstallWithViewIntent(String apkPath, int sdkInt) async {
     try {
-      print('🔧 Trying VIEW intent installation...');
+      if (kDebugMode) {
+        print('🔧 Trying VIEW intent installation...');
+      }
 
       AndroidIntent intent;
 
@@ -725,7 +847,9 @@ class UpdateService extends ChangeNotifier {
         }
 
         final contentUri = 'content://$authority$contentPath';
-        print('🔗 Content URI: $contentUri');
+        if (kDebugMode) {
+          print('🔗 Content URI: $contentUri');
+        }
 
         intent = AndroidIntent(
           action: 'android.intent.action.VIEW',
@@ -751,26 +875,33 @@ class UpdateService extends ChangeNotifier {
       }
 
       await intent.launch();
-      print('✅ VIEW intent launched');
+      if (kDebugMode) {
+        print('✅ VIEW intent launched');
+      }
       return true;
 
     } catch (e) {
-      print('❌ VIEW intent failed: $e');
+      if (kDebugMode) {
+        print('❌ VIEW intent failed: $e');
+      }
       return false;
     }
   }
 
   Future<bool> _tryInstallFromPublicDownloads(String apkPath) async {
     try {
-      print('🔧 Trying installation from public downloads...');
+      if (kDebugMode) {
+        print('🔧 Trying installation from public downloads...');
+      }
 
-      final publicPath = '/storage/emulated/0/Download/spendwise_${_latestVersion}.apk';
+      final publicPath = '/storage/emulated/0/Download/spendwise_$_latestVersion.apk';
       final sourceFile = File(apkPath);
-      final targetFile = File(publicPath);
 
       // Copy to public Downloads folder
       await sourceFile.copy(publicPath);
-      print('📁 Copied APK to: $publicPath');
+      if (kDebugMode) {
+        print('📁 Copied APK to: $publicPath');
+      }
 
       final intent = AndroidIntent(
         action: 'android.intent.action.VIEW',
@@ -783,18 +914,24 @@ class UpdateService extends ChangeNotifier {
       );
 
       await intent.launch();
-      print('✅ Public downloads install intent launched');
+      if (kDebugMode) {
+        print('✅ Public downloads install intent launched');
+      }
       return true;
 
     } catch (e) {
-      print('❌ Public downloads install failed: $e');
+      if (kDebugMode) {
+        print('❌ Public downloads install failed: $e');
+      }
       return false;
     }
   }
 
   Future<bool> _tryInstallWithInstallPackageIntent(String apkPath) async {
     try {
-      print('🔧 Trying INSTALL_PACKAGE intent...');
+      if (kDebugMode) {
+        print('🔧 Trying INSTALL_PACKAGE intent...');
+      }
 
       final intent = AndroidIntent(
         action: 'android.intent.action.INSTALL_PACKAGE',
@@ -804,27 +941,37 @@ class UpdateService extends ChangeNotifier {
       );
 
       await intent.launch();
-      print('✅ INSTALL_PACKAGE intent launched');
+      if (kDebugMode) {
+        print('✅ INSTALL_PACKAGE intent launched');
+      }
       return true;
 
     } catch (e) {
-      print('❌ INSTALL_PACKAGE intent failed: $e');
+      if (kDebugMode) {
+        print('❌ INSTALL_PACKAGE intent failed: $e');
+      }
       return false;
     }
   }
 
   /// Complete update flow with enhanced error handling
   Future<bool> downloadAndInstall() async {
-    print('🚀 Starting complete update flow...');
+    if (kDebugMode) {
+      print('🚀 Starting complete update flow...');
+    }
 
     _lastError = null;
 
     final apkPath = await downloadUpdateWithProgress();
     if (apkPath != null) {
-      print('📦 Download completed, starting installation...');
+      if (kDebugMode) {
+        print('📦 Download completed, starting installation...');
+      }
       return await installUpdate(apkPath);
     } else {
-      print('❌ Download failed, cannot proceed with installation');
+      if (kDebugMode) {
+        print('❌ Download failed, cannot proceed with installation');
+      }
       return false;
     }
   }

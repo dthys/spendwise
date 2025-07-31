@@ -8,10 +8,10 @@ class BankAccountDialog {
       BuildContext context, {
         String? currentIBAN,
       }) async {
-    final _ibanController = TextEditingController(text: currentIBAN ?? '');
-    final _formKey = GlobalKey<FormState>();
-    bool _isValidating = false;
-    String? _validationResult;
+    final ibanController = TextEditingController(text: currentIBAN ?? '');
+    final formKey = GlobalKey<FormState>();
+    bool isValidating = false;
+    String? validationResult;
 
     return showDialog<String>(
       context: context,
@@ -20,7 +20,7 @@ class BankAccountDialog {
           title: Row(
             children: [
               Icon(Icons.account_balance, color: Colors.blue.shade500),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Expanded( // This fixes the overflow
                 child: Text(
                   currentIBAN == null ? 'Bank account' : 'Bank account',
@@ -29,10 +29,10 @@ class BankAccountDialog {
               ),
             ],
           ),
-          content: Container(
+          content: SizedBox(
             width: double.maxFinite,
             child: Form(
-              key: _formKey,
+              key: formKey,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -42,14 +42,14 @@ class BankAccountDialog {
                       'Fill in your bank account to make direct payments possible',
                       style: TextStyle(color: Colors.grey.shade600),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
                     TextFormField(
-                      controller: _ibanController,
+                      controller: ibanController,
                       decoration: InputDecoration(
                         labelText: 'IBAN',
                         hintText: 'BE68 5390 0754 7034',
-                        prefixIcon: Icon(Icons.account_balance),
+                        prefixIcon: const Icon(Icons.account_balance),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         helperText: 'Format: BE68 5390 0754 7034',
                       ),
@@ -60,7 +60,7 @@ class BankAccountDialog {
                       ],
                       onChanged: (value) {
                         setState(() {
-                          _validationResult = null;
+                          validationResult = null;
                         });
                       },
                       validator: (value) {
@@ -81,19 +81,19 @@ class BankAccountDialog {
                       },
                     ),
 
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
                     // Validation result
-                    if (_validationResult != null)
+                    if (validationResult != null)
                       Container(
-                        padding: EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: _validationResult!.startsWith('✅')
+                          color: validationResult!.startsWith('✅')
                               ? Colors.green.shade50
                               : Colors.red.shade50,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: _validationResult!.startsWith('✅')
+                            color: validationResult!.startsWith('✅')
                                 ? Colors.green.shade200
                                 : Colors.red.shade200,
                           ),
@@ -101,20 +101,20 @@ class BankAccountDialog {
                         child: Row(
                           children: [
                             Icon(
-                              _validationResult!.startsWith('✅')
+                              validationResult!.startsWith('✅')
                                   ? Icons.check_circle
                                   : Icons.error,
-                              color: _validationResult!.startsWith('✅')
+                              color: validationResult!.startsWith('✅')
                                   ? Colors.green.shade600
                                   : Colors.red.shade600,
                               size: 20,
                             ),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                _validationResult!,
+                                validationResult!,
                                 style: TextStyle(
-                                  color: _validationResult!.startsWith('✅')
+                                  color: validationResult!.startsWith('✅')
                                       ? Colors.green.shade700
                                       : Colors.red.shade700,
                                   fontSize: 12,
@@ -125,51 +125,51 @@ class BankAccountDialog {
                         ),
                       ),
 
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
                     // Validate button
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: _isValidating ? null : () async {
-                          String iban = _ibanController.text.replaceAll(' ', '');
+                        onPressed: isValidating ? null : () async {
+                          String iban = ibanController.text.replaceAll(' ', '');
                           if (iban.length >= 15) {
                             setState(() {
-                              _isValidating = true;
+                              isValidating = true;
                             });
 
-                            await Future.delayed(Duration(milliseconds: 500)); // Simulate validation
+                            await Future.delayed(const Duration(milliseconds: 500)); // Simulate validation
 
                             if (BankingService.validateIBAN(iban)) {
                               String country = BankingService.getCountryFromIBAN(iban);
                               setState(() {
-                                _validationResult = '✅ Geldig IBAN nummer uit $country';
-                                _isValidating = false;
+                                validationResult = '✅ Geldig IBAN nummer uit $country';
+                                isValidating = false;
                               });
                             } else {
                               setState(() {
-                                _validationResult = '❌ Ongeldig IBAN nummer';
-                                _isValidating = false;
+                                validationResult = '❌ Ongeldig IBAN nummer';
+                                isValidating = false;
                               });
                             }
                           }
                         },
-                        icon: _isValidating
-                            ? SizedBox(
+                        icon: isValidating
+                            ? const SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                            : Icon(Icons.verified),
-                        label: Text(_isValidating ? 'Validating...' : 'Validate IBAN'),
+                            : const Icon(Icons.verified),
+                        label: Text(isValidating ? 'Validating...' : 'Validate IBAN'),
                       ),
                     ),
 
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
                     // Info box
                     Container(
-                      padding: EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.blue.shade50,
                         borderRadius: BorderRadius.circular(8),
@@ -178,7 +178,7 @@ class BankAccountDialog {
                       child: Row(
                         children: [
                           Icon(Icons.info, color: Colors.blue.shade600, size: 20),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Your IBAN is stored securely and only used for payments within your groups.',
@@ -199,16 +199,16 @@ class BankAccountDialog {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  String cleanIBAN = _ibanController.text.replaceAll(' ', '');
+                if (formKey.currentState!.validate()) {
+                  String cleanIBAN = ibanController.text.replaceAll(' ', '');
                   Navigator.pop(context, cleanIBAN);
                 }
               },
-              child: Text('Save'),
+              child: const Text('Save'),
             ),
           ],
         ),
@@ -230,7 +230,7 @@ class IBANFormatter extends TextInputFormatter {
     String formatted = '';
     for (int i = 0; i < text.length; i += 4) {
       if (i + 4 < text.length) {
-        formatted += text.substring(i, i + 4) + ' ';
+        formatted += '${text.substring(i, i + 4)} ';
       } else {
         formatted += text.substring(i);
       }

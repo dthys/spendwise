@@ -18,7 +18,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
   List<Widget> buildActions(BuildContext context) {
     return [
       IconButton(
-        icon: Icon(Icons.clear),
+        icon: const Icon(Icons.clear),
         onPressed: () {
           query = '';
           showSuggestions(context);
@@ -30,7 +30,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
   @override
   Widget buildLeading(BuildContext context) {
     return IconButton(
-      icon: Icon(Icons.arrow_back),
+      icon: const Icon(Icons.arrow_back),
       onPressed: () {
         close(context, '');
       },
@@ -47,7 +47,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
       future: _databaseService.searchAll(query, userId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator());
         }
 
         if (snapshot.hasError) {
@@ -89,7 +89,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
             itemBuilder: (context, index) {
               final suggestion = suggestions[index];
               return ListTile(
-                leading: Icon(Icons.history, color: Colors.grey),
+                leading: const Icon(Icons.history, color: Colors.grey),
                 title: Text(suggestion),
                 onTap: () {
                   query = suggestion;
@@ -107,7 +107,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
       future: _databaseService.searchAll(query, userId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator());
         }
 
         if (!snapshot.hasData) {
@@ -133,7 +133,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
             size: 64,
             color: Colors.grey.shade400,
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             message,
             style: TextStyle(
@@ -153,7 +153,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
         if (groups.isNotEmpty) ...[
           _buildSectionHeader('Groups', groups.length),
           ...groups.map((group) => _buildGroupTile(context, group)),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
         ],
         if (friends.isNotEmpty) ...[
           _buildSectionHeader('Friends', friends.length),
@@ -170,7 +170,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
     for (var group in groups.take(3)) {
       suggestionTiles.add(
         ListTile(
-          leading: CircleAvatar(
+          leading: const CircleAvatar(
             backgroundColor: Colors.blue,
             radius: 16,
             child: Icon(Icons.group, color: Colors.white, size: 16),
@@ -225,7 +225,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
 
   Widget _buildSectionHeader(String title, int count) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Text(
         '$title ($count)',
         style: TextStyle(
@@ -243,7 +243,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
         backgroundColor: Colors.blue,
         child: Text(
           group.name.substring(0, 1).toUpperCase(),
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
@@ -251,7 +251,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
       ),
       title: Text(
         group.name,
-        style: TextStyle(fontWeight: FontWeight.w600),
+        style: const TextStyle(fontWeight: FontWeight.w600),
       ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,7 +269,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
             ),
         ],
       ),
-      trailing: Icon(Icons.arrow_forward_ios, size: 16),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
       onTap: () {
         close(context, group.name);
         Navigator.push(
@@ -303,7 +303,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
       ),
       title: Text(
         friendBalance.friend.name,
-        style: TextStyle(fontWeight: FontWeight.w600),
+        style: const TextStyle(fontWeight: FontWeight.w600),
       ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,14 +367,14 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
               )
                   : null,
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     friendBalance.friend.name,
-                    style: TextStyle(fontSize: 18),
+                    style: const TextStyle(fontSize: 18),
                   ),
                   Text(
                     friendBalance.balanceText,
@@ -395,11 +395,11 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
           children: [
             Text(
               'Shared Groups (${friendBalance.sharedGroupsCount}):',
-              style: TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Container(
-              constraints: BoxConstraints(maxHeight: 200),
+              constraints: const BoxConstraints(maxHeight: 200),
               child: ListView.builder(
                 shrinkWrap: true,
                 itemCount: friendBalance.sharedGroupIds.length,
@@ -410,11 +410,11 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
                     builder: (context, snapshot) {
                       if (snapshot.hasData && snapshot.data != null) {
                         return Padding(
-                          padding: EdgeInsets.symmetric(vertical: 2),
+                          padding: const EdgeInsets.symmetric(vertical: 2),
                           child: Row(
                             children: [
-                              Icon(Icons.group, size: 16, color: Colors.grey),
-                              SizedBox(width: 8),
+                              const Icon(Icons.group, size: 16, color: Colors.grey),
+                              const SizedBox(width: 8),
                               Expanded(child: Text(snapshot.data!.name)),
                               TextButton(
                                 onPressed: () {
@@ -426,13 +426,13 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
                                     ),
                                   );
                                 },
-                                child: Text('View'),
+                                child: const Text('View'),
                               ),
                             ],
                           ),
                         );
                       }
-                      return SizedBox.shrink();
+                      return const SizedBox.shrink();
                     },
                   );
                 },
@@ -443,7 +443,7 @@ class SpendwiseSearchDelegate extends SearchDelegate<String> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Close'),
+            child: const Text('Close'),
           ),
         ],
       ),

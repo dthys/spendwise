@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/activity_log_model.dart';
 import '../models/user_model.dart';
 import '../models/group_model.dart';
@@ -39,22 +40,30 @@ class DatabaseService {
           .doc(activityLog.id)
           .set(activityLog.toMap());
 
-      print('✅ Activity log added: ${activityLog.description}');
+      if (kDebugMode) {
+        print('✅ Activity log added: ${activityLog.description}');
+      }
 
       // Send notification if currentUserId is provided
       if (currentUserId != null) {
         try {
           final notificationService = NotificationService();
           await notificationService.sendActivityNotification(activityLog, currentUserId);
-          print('📱 Notification sent for activity: ${activityLog.type}');
+          if (kDebugMode) {
+            print('📱 Notification sent for activity: ${activityLog.type}');
+          }
         } catch (e) {
-          print('❌ Failed to send notification: $e');
+          if (kDebugMode) {
+            print('❌ Failed to send notification: $e');
+          }
           // Don't fail the activity log if notification fails
         }
       }
     } catch (e) {
-      print('❌ Error adding activity log: $e');
-      throw e;
+      if (kDebugMode) {
+        print('❌ Error adding activity log: $e');
+      }
+      rethrow;
     }
   }
 
@@ -92,26 +101,36 @@ class DatabaseService {
   // Search users by email
   Future<List<UserModel>> searchUsersByEmail(String email) async {
     try {
-      print('Searching for user with email: $email'); // Debug
+      if (kDebugMode) {
+        print('Searching for user with email: $email');
+      } // Debug
 
       QuerySnapshot query = await _users
           .where('email', isEqualTo: email)
           .limit(1)
           .get();
 
-      print('Query returned ${query.docs.length} documents'); // Debug
+      if (kDebugMode) {
+        print('Query returned ${query.docs.length} documents');
+      } // Debug
 
       List<UserModel> users = query.docs
           .map((doc) {
-        print('Found user document: ${doc.data()}'); // Debug
+        if (kDebugMode) {
+          print('Found user document: ${doc.data()}');
+        } // Debug
         return UserModel.fromMap(doc.data() as Map<String, dynamic>);
       })
           .toList();
 
-      print('Returning ${users.length} users'); // Debug
+      if (kDebugMode) {
+        print('Returning ${users.length} users');
+      } // Debug
       return users;
     } catch (e) {
-      print('Error searching users: $e'); // Debug
+      if (kDebugMode) {
+        print('Error searching users: $e');
+      } // Debug
       throw Exception('Failed to search users: $e');
     }
   }
@@ -297,11 +316,15 @@ class DatabaseService {
           currentUserId: userId, // Pass current user ID
       );
 
-      print('✅ User $userId successfully left group $groupId');
+      if (kDebugMode) {
+        print('✅ User $userId successfully left group $groupId');
+      }
       return true;
     } catch (e) {
-      print('❌ Error leaving group: $e');
-      throw e;
+      if (kDebugMode) {
+        print('❌ Error leaving group: $e');
+      }
+      rethrow;
     }
   }
 
@@ -349,10 +372,14 @@ class DatabaseService {
         currentUserId: currentUserId, // Pass current user ID
       );
 
-      print('✅ Successfully added ${userToAdd.name} to group $groupId');
+      if (kDebugMode) {
+        print('✅ Successfully added ${userToAdd.name} to group $groupId');
+      }
     } catch (e) {
-      print('❌ Error adding member to group: $e');
-      throw e;
+      if (kDebugMode) {
+        print('❌ Error adding member to group: $e');
+      }
+      rethrow;
     }
   }
 
@@ -393,16 +420,20 @@ class DatabaseService {
       );
 
       // Wait a moment for the activity log to be written
-      await Future.delayed(Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 500));
 
       // Now delete the entire group using existing method
       await deleteGroup(groupId);
 
-      print('✅ Group $groupId successfully deleted by user $userId');
+      if (kDebugMode) {
+        print('✅ Group $groupId successfully deleted by user $userId');
+      }
       return true;
     } catch (e) {
-      print('❌ Error deleting group: $e');
-      throw e;
+      if (kDebugMode) {
+        print('❌ Error deleting group: $e');
+      }
+      rethrow;
     }
   }
 
@@ -426,7 +457,9 @@ class DatabaseService {
 
       return bankAccountStatus;
     } catch (e) {
-      print('Error checking bank accounts: $e');
+      if (kDebugMode) {
+        print('Error checking bank accounts: $e');
+      }
       return {};
     }
   }
@@ -493,7 +526,9 @@ class DatabaseService {
 
       return members;
     } catch (e) {
-      print('Error getting group members: $e');
+      if (kDebugMode) {
+        print('Error getting group members: $e');
+      }
       return [];
     }
   }
@@ -504,7 +539,9 @@ class DatabaseService {
       String docId = '${userId}_$groupId';
       DateTime now = DateTime.now();
 
-      print('📝 Updating last seen activity: $docId at ${now.toIso8601String()}');
+      if (kDebugMode) {
+        print('📝 Updating last seen activity: $docId at ${now.toIso8601String()}');
+      }
 
       await _firestore
           .collection('last_seen_activities')
@@ -519,7 +556,9 @@ class DatabaseService {
         'triggerUpdate': now.millisecondsSinceEpoch,
       }, SetOptions(merge: true));
 
-      print('✅ Successfully updated last seen activity for $docId');
+      if (kDebugMode) {
+        print('✅ Successfully updated last seen activity for $docId');
+      }
 
       // IMPORTANT: Add a small artificial activity log entry to trigger the stream
       // This won't be visible to users but will trigger the notification stream
@@ -538,14 +577,16 @@ class DatabaseService {
       });
 
       // Delete the trigger document immediately
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 100));
       await _firestore
           .collection('activity_logs')
           .doc('_trigger_${now.millisecondsSinceEpoch}')
           .delete();
 
     } catch (e) {
-      print('❌ Error updating last seen activity: $e');
+      if (kDebugMode) {
+        print('❌ Error updating last seen activity: $e');
+      }
     }
   }
 
@@ -565,7 +606,9 @@ class DatabaseService {
 
       return null;
     } catch (e) {
-      print('Error getting last seen activity: $e');
+      if (kDebugMode) {
+        print('Error getting last seen activity: $e');
+      }
       return null;
     }
   }
@@ -575,8 +618,12 @@ class DatabaseService {
     try {
       DateTime? lastSeen = await getLastSeenActivity(userId, groupId);
 
-      print('🔍 Checking unread activities for $userId in group $groupId');
-      print('📅 Last seen: ${lastSeen?.toIso8601String() ?? 'Never'}');
+      if (kDebugMode) {
+        print('🔍 Checking unread activities for $userId in group $groupId');
+      }
+      if (kDebugMode) {
+        print('📅 Last seen: ${lastSeen?.toIso8601String() ?? 'Never'}');
+      }
 
       Query query = _firestore
           .collection('activity_logs')
@@ -589,11 +636,15 @@ class DatabaseService {
       QuerySnapshot snapshot = await query.get();
       int count = snapshot.docs.length;
 
-      print('📊 Found $count unread activities for group $groupId');
+      if (kDebugMode) {
+        print('📊 Found $count unread activities for group $groupId');
+      }
 
       return count;
     } catch (e) {
-      print('❌ Error getting unread activity count: $e');
+      if (kDebugMode) {
+        print('❌ Error getting unread activity count: $e');
+      }
       return 0;
     }
   }
@@ -609,8 +660,12 @@ class DatabaseService {
         List<GroupModel> groups = await getUserGroups(userId);
         int totalUnread = 0;
 
-        print('🔔 === CALCULATING TOTAL UNREAD NOTIFICATIONS ===');
-        print('🔔 User has ${groups.length} groups');
+        if (kDebugMode) {
+          print('🔔 === CALCULATING TOTAL UNREAD NOTIFICATIONS ===');
+        }
+        if (kDebugMode) {
+          print('🔔 User has ${groups.length} groups');
+        }
 
         for (GroupModel group in groups) {
           try {
@@ -631,16 +686,24 @@ class DatabaseService {
 
             totalUnread += groupUnreadCount;
 
-            print('🔔 Group "${group.name}": $groupUnreadCount unread activities');
+            if (kDebugMode) {
+              print('🔔 Group "${group.name}": $groupUnreadCount unread activities');
+            }
           } catch (e) {
-            print('❌ Error calculating unread for group ${group.id}: $e');
+            if (kDebugMode) {
+              print('❌ Error calculating unread for group ${group.id}: $e');
+            }
           }
         }
 
-        print('🔔 Total unread across all groups: $totalUnread');
+        if (kDebugMode) {
+          print('🔔 Total unread across all groups: $totalUnread');
+        }
         return totalUnread;
       } catch (e) {
-        print('❌ Error in streamTotalUnreadActivities: $e');
+        if (kDebugMode) {
+          print('❌ Error in streamTotalUnreadActivities: $e');
+        }
         return 0;
       }
     });
@@ -701,11 +764,15 @@ class DatabaseService {
   // Get all friends with consolidated balances across all groups
   Future<List<FriendBalance>> getUserFriendsWithBalances(String userId) async {
     try {
-      print('🤝 === CALCULATING FRIENDS BALANCES ===');
+      if (kDebugMode) {
+        print('🤝 === CALCULATING FRIENDS BALANCES ===');
+      }
 
       // Get all user's groups
       List<GroupModel> groups = await getUserGroups(userId);
-      print('📊 User has ${groups.length} groups');
+      if (kDebugMode) {
+        print('📊 User has ${groups.length} groups');
+      }
 
       // Map to store friend ID -> consolidated balance
       Map<String, double> friendBalances = {};
@@ -719,13 +786,14 @@ class DatabaseService {
         Map<String, double> groupBalances = await calculateGroupBalancesWithSettlements(group.id);
         double userBalanceInGroup = groupBalances[userId] ?? 0.0;
 
-        print('💰 Group "${group.name}": User balance = €${userBalanceInGroup.toStringAsFixed(2)}');
+        if (kDebugMode) {
+          print('💰 Group "${group.name}": User balance = €${userBalanceInGroup.toStringAsFixed(2)}');
+        }
 
         // Process each other member in the group
         for (String memberId in group.memberIds) {
           if (memberId == userId) continue; // Skip self
 
-          double memberBalanceInGroup = groupBalances[memberId] ?? 0.0;
 
           // Calculate what this friend owes/is owed relative to current user
           // If user has +50 and friend has -30, friend owes user some amount
@@ -749,7 +817,9 @@ class DatabaseService {
           }
           sharedGroups[memberId]!.add(group.id);
 
-          print('👥 Friend ${friendDetails[memberId]?.name ?? memberId}: €${friendToUserBalance.toStringAsFixed(2)} in group "${group.name}"');
+          if (kDebugMode) {
+            print('👥 Friend ${friendDetails[memberId]?.name ?? memberId}: €${friendToUserBalance.toStringAsFixed(2)} in group "${group.name}"');
+          }
         }
       }
 
@@ -777,14 +847,20 @@ class DatabaseService {
       // Sort by balance (highest owed to you first, then what you owe)
       friendsList.sort((a, b) => b.balance.compareTo(a.balance));
 
-      print('🤝 Final friends list: ${friendsList.length} friends with balances');
+      if (kDebugMode) {
+        print('🤝 Final friends list: ${friendsList.length} friends with balances');
+      }
       for (var friend in friendsList) {
-        print('👤 ${friend.friend.name}: €${friend.balance.toStringAsFixed(2)} (${friend.sharedGroupsCount} groups)');
+        if (kDebugMode) {
+          print('👤 ${friend.friend.name}: €${friend.balance.toStringAsFixed(2)} (${friend.sharedGroupsCount} groups)');
+        }
       }
 
       return friendsList;
     } catch (e) {
-      print('❌ Error calculating friends balances: $e');
+      if (kDebugMode) {
+        print('❌ Error calculating friends balances: $e');
+      }
       return [];
     }
   }
@@ -821,10 +897,14 @@ class DatabaseService {
         return a.name.compareTo(b.name);
       });
 
-      print('🔍 Search results for "$query": ${filteredGroups.length} groups found');
+      if (kDebugMode) {
+        print('🔍 Search results for "$query": ${filteredGroups.length} groups found');
+      }
       return filteredGroups;
     } catch (e) {
-      print('❌ Error searching groups: $e');
+      if (kDebugMode) {
+        print('❌ Error searching groups: $e');
+      }
       return [];
     }
   }
@@ -859,10 +939,14 @@ class DatabaseService {
         return a.friend.name.compareTo(b.friend.name);
       });
 
-      print('🔍 Search results for "$query": ${filteredFriends.length} friends found');
+      if (kDebugMode) {
+        print('🔍 Search results for "$query": ${filteredFriends.length} friends found');
+      }
       return filteredFriends;
     } catch (e) {
-      print('❌ Error searching friends: $e');
+      if (kDebugMode) {
+        print('❌ Error searching friends: $e');
+      }
       return [];
     }
   }
@@ -881,7 +965,9 @@ class DatabaseService {
         'totalResults': (results[0] as List).length + (results[1] as List).length,
       };
     } catch (e) {
-      print('❌ Error in combined search: $e');
+      if (kDebugMode) {
+        print('❌ Error in combined search: $e');
+      }
       return {
         'groups': <GroupModel>[],
         'friends': <FriendBalance>[],
@@ -895,7 +981,7 @@ class DatabaseService {
     try {
       if (query.trim().isEmpty) return [];
 
-      String lowercaseQuery = query.toLowerCase();
+      query.toLowerCase();
       List<UserModel> foundUsers = [];
 
       // Search by email first (exact match)
@@ -911,10 +997,14 @@ class DatabaseService {
       // Remove current user from results
       foundUsers.removeWhere((user) => user.id == currentUserId);
 
-      print('🔍 Global user search for "$query": ${foundUsers.length} users found');
+      if (kDebugMode) {
+        print('🔍 Global user search for "$query": ${foundUsers.length} users found');
+      }
       return foundUsers;
     } catch (e) {
-      print('❌ Error in global user search: $e');
+      if (kDebugMode) {
+        print('❌ Error in global user search: $e');
+      }
       return [];
     }
   }
@@ -938,7 +1028,9 @@ class DatabaseService {
 
       return suggestions.take(10).toList(); // Limit to 10 suggestions
     } catch (e) {
-      print('❌ Error getting search suggestions: $e');
+      if (kDebugMode) {
+        print('❌ Error getting search suggestions: $e');
+      }
       return [];
     }
   }
@@ -1009,7 +1101,9 @@ class DatabaseService {
 
       return directBalance;
     } catch (e) {
-      print('❌ Error calculating direct balance: $e');
+      if (kDebugMode) {
+        print('❌ Error calculating direct balance: $e');
+      }
       return 0.0;
     }
   }
@@ -1079,10 +1173,14 @@ class DatabaseService {
         currentUserId: currentUserId,
       );
 
-      print('✅ Expense updated and notification sent');
+      if (kDebugMode) {
+        print('✅ Expense updated and notification sent');
+      }
     } catch (e) {
-      print('❌ Error updating expense: $e');
-      throw e;
+      if (kDebugMode) {
+        print('❌ Error updating expense: $e');
+      }
+      rethrow;
     }
   }
 
@@ -1119,11 +1217,15 @@ class DatabaseService {
         currentUserId: currentUserId,
       );
 
-      print('✅ Expense created with ID: ${docRef.id} and notification sent');
+      if (kDebugMode) {
+        print('✅ Expense created with ID: ${docRef.id} and notification sent');
+      }
       return docRef.id; // Return the generated ID
     } catch (e) {
-      print('❌ Error creating expense: $e');
-      throw e;
+      if (kDebugMode) {
+        print('❌ Error creating expense: $e');
+      }
+      rethrow;
     }
   }
 
@@ -1167,10 +1269,14 @@ class DatabaseService {
         currentUserId: currentUserId,
       );
 
-      print('✅ Expense deleted and notification sent');
+      if (kDebugMode) {
+        print('✅ Expense deleted and notification sent');
+      }
     } catch (e) {
-      print('❌ Error deleting expense: $e');
-      throw e;
+      if (kDebugMode) {
+        print('❌ Error deleting expense: $e');
+      }
+      rethrow;
     }
   }
 
@@ -1180,9 +1286,13 @@ class DatabaseService {
   Future<void> createSettlement(SettlementModel settlement) async {
     try {
       await _settlements.doc(settlement.id).set(settlement.toMap());
-      print('Settlement created: ${settlement.id}');
+      if (kDebugMode) {
+        print('Settlement created: ${settlement.id}');
+      }
     } catch (e) {
-      print('Error creating settlement: $e');
+      if (kDebugMode) {
+        print('Error creating settlement: $e');
+      }
       throw Exception('Failed to create settlement: $e');
     }
   }
@@ -1199,7 +1309,9 @@ class DatabaseService {
           .map((doc) => SettlementModel.fromMap(doc.data() as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      print('Error getting group settlements: $e');
+      if (kDebugMode) {
+        print('Error getting group settlements: $e');
+      }
       return [];
     }
   }
@@ -1219,9 +1331,13 @@ class DatabaseService {
   Future<void> deleteSettlement(String settlementId) async {
     try {
       await _settlements.doc(settlementId).delete();
-      print('Settlement deleted: $settlementId');
+      if (kDebugMode) {
+        print('Settlement deleted: $settlementId');
+      }
     } catch (e) {
-      print('Error deleting settlement: $e');
+      if (kDebugMode) {
+        print('Error deleting settlement: $e');
+      }
       throw Exception('Failed to delete settlement: $e');
     }
   }
@@ -1258,15 +1374,21 @@ class DatabaseService {
 
   // Calculate balances considering settlements (NEW method)
   Future<Map<String, double>> calculateGroupBalancesWithSettlements(String groupId) async {
-    print('🧮 === CALCULATING GROUP BALANCES WITH SETTLEMENTS ===');
+    if (kDebugMode) {
+      print('🧮 === CALCULATING GROUP BALANCES WITH SETTLEMENTS ===');
+    }
 
     try {
       // Get expenses and settlements
       List<ExpenseModel> expenses = await getGroupExpenses(groupId);
       List<SettlementModel> settlements = await getGroupSettlements(groupId);
 
-      print('📝 Total expenses: ${expenses.length}');
-      print('💰 Total settlements: ${settlements.length}');
+      if (kDebugMode) {
+        print('📝 Total expenses: ${expenses.length}');
+      }
+      if (kDebugMode) {
+        print('💰 Total settlements: ${settlements.length}');
+      }
 
       Map<String, double> balances = {};
 
@@ -1285,10 +1407,14 @@ class DatabaseService {
         }
       }
 
-      print('📊 Final group balances: $balances');
+      if (kDebugMode) {
+        print('📊 Final group balances: $balances');
+      }
       return balances;
     } catch (e) {
-      print('❌ Error calculating group balances: $e');
+      if (kDebugMode) {
+        print('❌ Error calculating group balances: $e');
+      }
       return {};
     }
   }
@@ -1341,7 +1467,9 @@ class DatabaseService {
         balances[payer] = (balances[payer] ?? 0) + participantOwes;
         balances[participant] = (balances[participant] ?? 0) - participantOwes;
       } else {
-        print('✅ Settled portion: $participant owes $payer €${participantOwes.toStringAsFixed(2)} for expense ${expense.id}');
+        if (kDebugMode) {
+          print('✅ Settled portion: $participant owes $payer €${participantOwes.toStringAsFixed(2)} for expense ${expense.id}');
+        }
       }
     }
   }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
@@ -5,6 +6,8 @@ import '../../services/database_service.dart';
 import '../../models/user_model.dart';
 
 class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
 }
@@ -38,7 +41,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       // Wait a moment for Firebase to process
-      await Future.delayed(Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 500));
 
       // Check if user is actually created
       if (authService.currentUser != null) {
@@ -60,13 +63,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
           try {
             await authService.currentUser!.updateDisplayName(_nameController.text.trim());
             await authService.currentUser!.reload();
-            print('✅ Firebase Auth displayName updated successfully');
+            if (kDebugMode) {
+              print('✅ Firebase Auth displayName updated successfully');
+            }
           } catch (displayNameError) {
-            print('⚠️ Could not update Firebase Auth displayName: $displayNameError');
+            if (kDebugMode) {
+              print('⚠️ Could not update Firebase Auth displayName: $displayNameError');
+            }
             // Continue anyway since we have the name in our database
           }
 
-          print('✅ User registered successfully with name: ${_nameController.text.trim()}');
+          if (kDebugMode) {
+            print('✅ User registered successfully with name: ${_nameController.text.trim()}');
+          }
 
           // Success! Force navigation to home
           if (mounted) {
@@ -82,13 +91,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
           }
           return;
         } catch (e) {
-          print('❌ Error saving user data: $e');
+          if (kDebugMode) {
+            print('❌ Error saving user data: $e');
+          }
 
           // Even if there's an error saving additional data, registration was successful
           // Show success message but mention the profile data issue
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
+              const SnackBar(
                 content: Text('Account created successfully! You can update your profile in Settings.'),
                 backgroundColor: Colors.green,
               ),
@@ -136,10 +147,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
             );
 
             await _databaseService.createUser(newUser);
-            print('✅ Google user data saved to database');
+            if (kDebugMode) {
+              print('✅ Google user data saved to database');
+            }
           }
         } catch (e) {
-          print('❌ Error saving Google user data: $e');
+          if (kDebugMode) {
+            print('❌ Error saving Google user data: $e');
+          }
         }
       }
 
@@ -161,11 +176,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
 
               // Title
               Text(
@@ -176,7 +191,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   color: Colors.grey.shade800,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
                 'Join Spendwise and start splitting expenses with friends',
                 style: TextStyle(
@@ -185,7 +200,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
 
-              SizedBox(height: 32),
+              const SizedBox(height: 32),
 
               // Registration Form
               Form(
@@ -199,7 +214,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: InputDecoration(
                         labelText: 'Full Name',
                         hintText: 'Enter your full name',
-                        prefixIcon: Icon(Icons.person_outline),
+                        prefixIcon: const Icon(Icons.person_outline),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -217,7 +232,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       },
                     ),
 
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
                     // Email Field
                     TextFormField(
@@ -226,7 +241,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: InputDecoration(
                         labelText: 'Email',
                         hintText: 'Enter your email',
-                        prefixIcon: Icon(Icons.email_outlined),
+                        prefixIcon: const Icon(Icons.email_outlined),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -244,7 +259,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       },
                     ),
 
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
                     // Password Field
                     TextFormField(
@@ -253,7 +268,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: InputDecoration(
                         labelText: 'Password',
                         hintText: 'Create a password',
-                        prefixIcon: Icon(Icons.lock_outline),
+                        prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
@@ -281,7 +296,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       },
                     ),
 
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
                     // Confirm Password Field
                     TextFormField(
@@ -290,7 +305,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: InputDecoration(
                         labelText: 'Confirm Password',
                         hintText: 'Confirm your password',
-                        prefixIcon: Icon(Icons.lock_outline),
+                        prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _isConfirmPasswordVisible ? Icons.visibility_off : Icons.visibility,
@@ -318,7 +333,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       },
                     ),
 
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
                     // Register Button
                     Consumer<AuthService>(
@@ -328,14 +343,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue.shade500,
                             foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                             elevation: 0,
                           ),
                           child: authService.isLoading
-                              ? SizedBox(
+                              ? const SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(
@@ -343,7 +358,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                              : Text(
+                              : const Text(
                             'Create Account',
                             style: TextStyle(
                               fontSize: 16,
@@ -354,14 +369,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       },
                     ),
 
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
                     // Divider
                     Row(
                       children: [
                         Expanded(child: Divider(color: Colors.grey.shade300)),
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Text(
                             'or',
                             style: TextStyle(color: Colors.grey.shade600),
@@ -371,14 +386,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ],
                     ),
 
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
                     // Google Sign In Button
                     Consumer<AuthService>(
                       builder: (context, authService, child) {
                         return OutlinedButton.icon(
                           onPressed: authService.isLoading ? null : _signInWithGoogle,
-                          icon: Icon(Icons.g_mobiledata, color: Colors.red),
+                          icon: const Icon(Icons.g_mobiledata, color: Colors.red),
                           label: Text(
                             'Continue with Google',
                             style: TextStyle(
@@ -388,7 +403,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
-                            padding: EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -398,7 +413,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       },
                     ),
 
-                    SizedBox(height: 32),
+                    const SizedBox(height: 32),
 
                     // Sign In Link
                     Row(

@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
-import '../../models/activity_log_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../models/group_model.dart';
@@ -645,7 +644,7 @@ class EnhancedCategoryDetector {
 class ExpenseLearningSystem {
   static Map<String, ExpenseCategory> _learnedKeywords = {};
   static Map<String, int> _keywordFrequency = {};
-  static Map<ExpenseCategory, Map<String, int>> _categoryPatterns = {};
+  static final Map<ExpenseCategory, Map<String, int>> _categoryPatterns = {};
 
   // Load learned patterns (implement with SharedPreferences in real app)
   static Future<void> loadLearnedPatterns() async {
@@ -691,7 +690,9 @@ class ExpenseLearningSystem {
         _categoryPatterns[category] ??= {};
         _categoryPatterns[category]![keyword] = (_categoryPatterns[category]![keyword] ?? 0) + 1;
 
-        print('🧠 Learned: "$keyword" → ${category.displayName}');
+        if (kDebugMode) {
+          print('🧠 Learned: "$keyword" → ${category.displayName}');
+        }
       }
     }
 
@@ -745,10 +746,10 @@ class AddExpenseScreen extends StatefulWidget {
   final List<UserModel> members;
 
   const AddExpenseScreen({
-    Key? key,
+    super.key,
     required this.group,
     required this.members,
-  }) : super(key: key);
+  });
 
   @override
   _AddExpenseScreenState createState() => _AddExpenseScreenState();
@@ -770,8 +771,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   bool _autoDetectedCategory = false; // Track if category was auto-detected
 
   // Custom split amounts - Map from userId to amount/percentage
-  Map<String, TextEditingController> _customControllers = {};
-  Map<String, double> _customSplits = {};
+  final Map<String, TextEditingController> _customControllers = {};
+  final Map<String, double> _customSplits = {};
 
   // Add debouncing and optimize the detection method
   Timer? _detectionTimer;
@@ -804,7 +805,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     _detectionTimer?.cancel();
 
     // Start new timer - only detect after user stops typing for 300ms
-    _detectionTimer = Timer(Duration(milliseconds: 300), () {
+    _detectionTimer = Timer(const Duration(milliseconds: 300), () {
       _detectCategory();
     });
   }
@@ -927,16 +928,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
-  String _getSplitLabel() {
-    switch (_splitType) {
-      case SplitType.equal:
-        return 'Amount';
-      case SplitType.exact:
-        return 'Amount';
-      case SplitType.percentage:
-        return 'Percentage';
-    }
-  }
 
   String _getSplitSuffix() {
     switch (_splitType) {
@@ -952,7 +943,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(Duration(days: 365)),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now(),
     );
     if (picked != null && picked != _selectedDate) {
@@ -966,13 +957,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedPaidBy == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please select who paid')),
+        const SnackBar(content: Text('Please select who paid')),
       );
       return;
     }
     if (_selectedSplitBetween.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please select who to split between')),
+        const SnackBar(content: Text('Please select who to split between')),
       );
       return;
     }
@@ -1025,7 +1016,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             : _notesController.text.trim(),
       );
 
-      print('🧪 Creating expense...');
+      if (kDebugMode) {
+        print('🧪 Creating expense...');
+      }
 
       // Create the expense with currentUserId parameter for notifications
       String expenseId = await _databaseService.createExpense(
@@ -1033,10 +1026,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         currentUserId: currentUser.uid,  // Pass current user ID for notifications
       );
 
-      print('✅ Expense created with ID: $expenseId and notifications sent');
+      if (kDebugMode) {
+        print('✅ Expense created with ID: $expenseId and notifications sent');
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('💰 Expense added successfully!'),
           backgroundColor: Colors.green,
         ),
@@ -1044,7 +1039,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
       Navigator.pop(context);
     } catch (e) {
-      print('❌ Error in _addExpense: $e');
+      if (kDebugMode) {
+        print('❌ Error in _addExpense: $e');
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to add expense: $e'),
@@ -1074,13 +1071,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Add Expense'),
+        title: const Text('Add Expense'),
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Form(
           key: _formKey,
           child: Column(
@@ -1088,7 +1085,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             children: [
               // Enhanced info banner
               Container(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: theme.primaryColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
@@ -1097,7 +1094,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 child: Row(
                   children: [
                     Icon(Icons.auto_awesome, color: theme.primaryColor),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Categories learn from your keywords and get smarter over time.',
@@ -1108,7 +1105,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 ),
               ),
 
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
 
               // Description
               TextFormField(
@@ -1134,12 +1131,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 },
               ),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Amount
               TextFormField(
                 controller: _amountController,
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   labelText: 'Amount *',
@@ -1168,7 +1165,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 },
               ),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Enhanced Category with detection indicator
               DropdownButtonFormField<ExpenseCategory>(
@@ -1190,7 +1187,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                           child: Container(
                             width: 8,
                             height: 8,
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               color: Colors.green,
                               shape: BoxShape.circle,
                             ),
@@ -1218,13 +1215,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 },
               ),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Date
               InkWell(
                 onTap: _selectDate,
                 child: Container(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     border: Border.all(color: colorScheme.outline),
                     borderRadius: BorderRadius.circular(12),
@@ -1233,7 +1230,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   child: Row(
                     children: [
                       Icon(Icons.calendar_today, color: theme.primaryColor),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Text(
                         'Date: ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
                         style: TextStyle(
@@ -1241,14 +1238,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                           color: colorScheme.onSurface,
                         ),
                       ),
-                      Spacer(),
+                      const Spacer(),
                       Icon(Icons.arrow_drop_down, color: colorScheme.onSurface.withOpacity(0.6)),
                     ],
                   ),
                 ),
               ),
 
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
 
               // Who Paid
               Text(
@@ -1259,7 +1256,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   color: colorScheme.onSurface,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               ...widget.members.map((member) {
                 return RadioListTile<String>(
                   title: Text(
@@ -1279,9 +1276,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     });
                   },
                 );
-              }).toList(),
+              }),
 
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
 
               // Split Type Selection
               Text(
@@ -1292,14 +1289,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   color: colorScheme.onSurface,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
 
               // Split type chips
               Wrap(
                 spacing: 8,
                 children: [
                   ChoiceChip(
-                    label: Text('Equal'),
+                    label: const Text('Equal'),
                     selected: _splitType == SplitType.equal,
                     onSelected: (selected) => _onSplitTypeChanged(SplitType.equal),
                     selectedColor: theme.primaryColor.withOpacity(0.3),
@@ -1313,7 +1310,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     ),
                   ),
                   ChoiceChip(
-                    label: Text('Exact Amounts'),
+                    label: const Text('Exact Amounts'),
                     selected: _splitType == SplitType.exact,
                     onSelected: (selected) => _onSplitTypeChanged(SplitType.exact),
                     selectedColor: theme.primaryColor.withOpacity(0.3),
@@ -1327,7 +1324,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     ),
                   ),
                   ChoiceChip(
-                    label: Text('Percentage'),
+                    label: const Text('Percentage'),
                     selected: _splitType == SplitType.percentage,
                     onSelected: (selected) => _onSplitTypeChanged(SplitType.percentage),
                     selectedColor: theme.primaryColor.withOpacity(0.3),
@@ -1343,7 +1340,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 ],
               ),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Split Between with Custom Amounts
               Text(
@@ -1357,9 +1354,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
               // Show total and remaining amount for non-equal splits
               if (_splitType != SplitType.equal) ...[
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Container(
-                  padding: EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: _isValidSplit() ? Colors.green.shade50 : Colors.red.shade50,
                     borderRadius: BorderRadius.circular(8),
@@ -1373,19 +1370,19 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text('Total ${_splitType == SplitType.percentage ? "Percentage" : "Split"}:',
-                              style: TextStyle(fontWeight: FontWeight.w500)),
+                              style: const TextStyle(fontWeight: FontWeight.w500)),
                           Text(
                             _splitType == SplitType.percentage
                                 ? '${_getTotalSplitAmount().toStringAsFixed(1)}%'
                                 : '${widget.group.currency} ${_getTotalSplitAmount().toStringAsFixed(2)}',
-                            style: TextStyle(fontWeight: FontWeight.bold),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Remaining:', style: TextStyle(fontWeight: FontWeight.w500)),
+                          const Text('Remaining:', style: TextStyle(fontWeight: FontWeight.w500)),
                           Text(
                             _splitType == SplitType.percentage
                                 ? '${_getRemainingAmount().toStringAsFixed(1)}%'
@@ -1402,14 +1399,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 ),
               ],
 
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
 
               ...widget.members.map((member) {
                 return Card(
-                  margin: EdgeInsets.only(bottom: 8),
+                  margin: const EdgeInsets.only(bottom: 8),
                   color: theme.cardColor,
                   child: Padding(
-                    padding: EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(8),
                     child: Row(
                       children: [
                         if (_splitType == SplitType.equal) ...[
@@ -1450,21 +1447,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                             ],
                           ),
                         ),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Expanded(
                           flex: 2,
                           child: TextFormField(
                             controller: _customControllers[member.id],
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             enabled: _splitType != SplitType.equal,
                             style: TextStyle(color: colorScheme.onSurface),
                             decoration: InputDecoration(
                               labelText: _getSplitSuffix(),
-                              labelStyle: TextStyle(fontSize: 12),
+                              labelStyle: const TextStyle(fontSize: 12),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                               filled: true,
                               fillColor: _splitType != SplitType.equal
                                   ? colorScheme.surface
@@ -1477,9 +1474,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     ),
                   ),
                 );
-              }).toList(),
+              }),
 
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Notes (Optional)
               TextFormField(
@@ -1500,7 +1497,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 ),
               ),
 
-              SizedBox(height: 32),
+              const SizedBox(height: 32),
 
               // Add Button
               SizedBox(
@@ -1510,7 +1507,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.primaryColor,
                     foregroundColor: colorScheme.onPrimary,
-                    padding: EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -1525,7 +1522,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       valueColor: AlwaysStoppedAnimation<Color>(colorScheme.onPrimary),
                     ),
                   )
-                      : Text(
+                      : const Text(
                     'Add Expense',
                     style: TextStyle(
                       fontSize: 16,
@@ -1537,16 +1534,16 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
               // Debug info (remove in production)
               if (_autoDetectedCategory) ...[
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Container(
-                  padding: EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.green.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     '🤖 Auto-detected: ${_selectedCategory.displayName}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.green,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,

@@ -6,13 +6,13 @@ class AuthDialogs {
 
   // Change Password Dialog
   static Future<void> showChangePasswordDialog(BuildContext context) async {
-    final _formKey = GlobalKey<FormState>();
-    final _currentPasswordController = TextEditingController();
-    final _newPasswordController = TextEditingController();
-    final _confirmPasswordController = TextEditingController();
-    bool _isCurrentPasswordVisible = false;
-    bool _isNewPasswordVisible = false;
-    bool _isConfirmPasswordVisible = false;
+    final formKey = GlobalKey<FormState>();
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    bool isCurrentPasswordVisible = false;
+    bool isNewPasswordVisible = false;
+    bool isConfirmPasswordVisible = false;
 
     return showDialog(
       context: context,
@@ -21,27 +21,27 @@ class AuthDialogs {
           title: Row(
             children: [
               Icon(Icons.lock_outline, color: Colors.blue.shade500),
-              SizedBox(width: 8),
-              Text('Change Password'),
+              const SizedBox(width: 8),
+              const Text('Change Password'),
             ],
           ),
-          content: Container(
+          content: SizedBox(
             width: double.maxFinite,
             child: Form(
-              key: _formKey,
+              key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Current Password
                   TextFormField(
-                    controller: _currentPasswordController,
-                    obscureText: !_isCurrentPasswordVisible,
+                    controller: currentPasswordController,
+                    obscureText: !isCurrentPasswordVisible,
                     decoration: InputDecoration(
                       labelText: 'Current Password',
-                      prefixIcon: Icon(Icons.lock_outline),
+                      prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
-                        icon: Icon(_isCurrentPasswordVisible ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setState(() => _isCurrentPasswordVisible = !_isCurrentPasswordVisible),
+                        icon: Icon(isCurrentPasswordVisible ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => isCurrentPasswordVisible = !isCurrentPasswordVisible),
                       ),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
@@ -52,18 +52,18 @@ class AuthDialogs {
                       return null;
                     },
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // New Password
                   TextFormField(
-                    controller: _newPasswordController,
-                    obscureText: !_isNewPasswordVisible,
+                    controller: newPasswordController,
+                    obscureText: !isNewPasswordVisible,
                     decoration: InputDecoration(
                       labelText: 'New Password',
-                      prefixIcon: Icon(Icons.lock),
+                      prefixIcon: const Icon(Icons.lock),
                       suffixIcon: IconButton(
-                        icon: Icon(_isNewPasswordVisible ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setState(() => _isNewPasswordVisible = !_isNewPasswordVisible),
+                        icon: Icon(isNewPasswordVisible ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => isNewPasswordVisible = !isNewPasswordVisible),
                       ),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
@@ -77,18 +77,18 @@ class AuthDialogs {
                       return null;
                     },
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // Confirm New Password
                   TextFormField(
-                    controller: _confirmPasswordController,
-                    obscureText: !_isConfirmPasswordVisible,
+                    controller: confirmPasswordController,
+                    obscureText: !isConfirmPasswordVisible,
                     decoration: InputDecoration(
                       labelText: 'Confirm New Password',
-                      prefixIcon: Icon(Icons.lock),
+                      prefixIcon: const Icon(Icons.lock),
                       suffixIcon: IconButton(
-                        icon: Icon(_isConfirmPasswordVisible ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
+                        icon: Icon(isConfirmPasswordVisible ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => isConfirmPasswordVisible = !isConfirmPasswordVisible),
                       ),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
@@ -96,7 +96,7 @@ class AuthDialogs {
                       if (value == null || value.isEmpty) {
                         return 'Please confirm your new password';
                       }
-                      if (value != _newPasswordController.text) {
+                      if (value != newPasswordController.text) {
                         return 'Passwords do not match';
                       }
                       return null;
@@ -109,22 +109,22 @@ class AuthDialogs {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'),
+              child: const Text('Cancel'),
             ),
             Consumer<AuthService>(
               builder: (context, authService, child) {
                 return ElevatedButton(
                   onPressed: authService.isLoading ? null : () async {
-                    if (_formKey.currentState!.validate()) {
+                    if (formKey.currentState!.validate()) {
                       final error = await authService.changePassword(
-                        _currentPasswordController.text,
-                        _newPasswordController.text,
+                        currentPasswordController.text,
+                        newPasswordController.text,
                       );
 
                       if (error == null) {
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
+                          const SnackBar(
                             content: Text('Password changed successfully'),
                             backgroundColor: Colors.green,
                           ),
@@ -140,12 +140,12 @@ class AuthDialogs {
                     }
                   },
                   child: authService.isLoading
-                      ? SizedBox(
+                      ? const SizedBox(
                     height: 20,
                     width: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                      : Text('Change Password'),
+                      : const Text('Change Password'),
                 );
               },
             ),
@@ -157,10 +157,10 @@ class AuthDialogs {
 
   // Change Email Dialog
   static Future<void> showChangeEmailDialog(BuildContext context, String currentEmail) async {
-    final _formKey = GlobalKey<FormState>();
-    final _newEmailController = TextEditingController();
-    final _passwordController = TextEditingController();
-    bool _isPasswordVisible = false;
+    final formKey = GlobalKey<FormState>();
+    final newEmailController = TextEditingController();
+    final passwordController = TextEditingController();
+    bool isPasswordVisible = false;
 
     return showDialog(
       context: context,
@@ -169,20 +169,20 @@ class AuthDialogs {
           title: Row(
             children: [
               Icon(Icons.email_outlined, color: Colors.blue.shade500),
-              SizedBox(width: 8),
-              Text('Change Email'),
+              const SizedBox(width: 8),
+              const Text('Change Email'),
             ],
           ),
-          content: Container(
+          content: SizedBox(
             width: double.maxFinite,
             child: Form(
-              key: _formKey,
+              key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Current Email (display only)
                   Container(
-                    padding: EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(12),
@@ -190,26 +190,26 @@ class AuthDialogs {
                     child: Row(
                       children: [
                         Icon(Icons.email, color: Colors.grey.shade600),
-                        SizedBox(width: 12),
+                        const SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Current Email', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                            Text(currentEmail, style: TextStyle(fontWeight: FontWeight.w500)),
+                            Text(currentEmail, style: const TextStyle(fontWeight: FontWeight.w500)),
                           ],
                         ),
                       ],
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // New Email
                   TextFormField(
-                    controller: _newEmailController,
+                    controller: newEmailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       labelText: 'New Email',
-                      prefixIcon: Icon(Icons.email_outlined),
+                      prefixIcon: const Icon(Icons.email_outlined),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     validator: (value) {
@@ -225,18 +225,18 @@ class AuthDialogs {
                       return null;
                     },
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // Password Confirmation
                   TextFormField(
-                    controller: _passwordController,
-                    obscureText: !_isPasswordVisible,
+                    controller: passwordController,
+                    obscureText: !isPasswordVisible,
                     decoration: InputDecoration(
                       labelText: 'Current Password',
-                      prefixIcon: Icon(Icons.lock_outline),
+                      prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
-                        icon: Icon(_isPasswordVisible ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                        icon: Icon(isPasswordVisible ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => isPasswordVisible = !isPasswordVisible),
                       ),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
@@ -254,22 +254,22 @@ class AuthDialogs {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'),
+              child: const Text('Cancel'),
             ),
             Consumer<AuthService>(
               builder: (context, authService, child) {
                 return ElevatedButton(
                   onPressed: authService.isLoading ? null : () async {
-                    if (_formKey.currentState!.validate()) {
+                    if (formKey.currentState!.validate()) {
                       final error = await authService.changeEmail(
-                        _newEmailController.text.trim(),
-                        _passwordController.text,
+                        newEmailController.text.trim(),
+                        passwordController.text,
                       );
 
                       if (error == null) {
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
+                          const SnackBar(
                             content: Text('Email changed successfully'),
                             backgroundColor: Colors.green,
                           ),
@@ -285,12 +285,12 @@ class AuthDialogs {
                     }
                   },
                   child: authService.isLoading
-                      ? SizedBox(
+                      ? const SizedBox(
                     height: 20,
                     width: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                      : Text('Change Email'),
+                      : const Text('Change Email'),
                 );
               },
             ),
@@ -308,22 +308,22 @@ class AuthDialogs {
         title: Row(
           children: [
             Icon(Icons.fingerprint, color: Colors.blue.shade500),
-            SizedBox(width: 8),
-            Text('Enable Biometric'),
+            const SizedBox(width: 8),
+            const Text('Enable Biometric'),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.fingerprint, size: 64, color: Colors.blue.shade500),
-            SizedBox(height: 16),
-            Text(
+            const SizedBox(height: 16),
+            const Text(
               'Enable biometric authentication for quick and secure access to Spendwise.',
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.orange.shade50,
                 borderRadius: BorderRadius.circular(8),
@@ -332,7 +332,7 @@ class AuthDialogs {
               child: Row(
                 children: [
                   Icon(Icons.info, color: Colors.orange.shade600, size: 20),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Your credentials will be stored securely on this device.',
@@ -347,17 +347,17 @@ class AuthDialogs {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Not Now'),
+            child: const Text('Not Now'),
           ),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
               // This would be handled by the BiometricService
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Biometric authentication setup...')),
+                const SnackBar(content: Text('Biometric authentication setup...')),
               );
             },
-            child: Text('Enable'),
+            child: const Text('Enable'),
           ),
         ],
       ),

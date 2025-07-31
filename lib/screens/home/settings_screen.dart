@@ -1,10 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../dialogs/bank_account_dialog.dart';
 import '../../services/auth_service.dart';
 import '../../services/banking_service.dart';
-import '../../services/notification_service.dart';
 import '../../services/theme_service.dart';
 import '../../services/database_service.dart';
 import '../../services/biometric_service.dart';
@@ -14,11 +14,11 @@ import 'notification_settings_screen.dart';
 import '../../services/update_service.dart';
 import '../../dialogs/update_dialog.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'dart:io';
 
 class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
   @override
   _SettingsScreenState createState() => _SettingsScreenState();
 }
@@ -47,7 +47,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     // Show loading indicator
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      const SnackBar(
         content: Row(
           children: [
             SizedBox(
@@ -82,7 +82,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         // If user doesn't exist in database or name is missing, create/update it
         if (user == null) {
-          print('⚠️ User not found in database, creating user record');
+          if (kDebugMode) {
+            print('⚠️ User not found in database, creating user record');
+          }
           // Create user record with Firebase Auth data
           user = UserModel(
             id: authService.currentUser!.uid,
@@ -95,7 +97,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           await _databaseService.createUser(user);
         } else if (user.name.isEmpty && authService.currentUser!.displayName != null) {
           // Update user with name from Firebase Auth if it's missing
-          print('⚠️ User name missing in database, updating with Firebase Auth name');
+          if (kDebugMode) {
+            print('⚠️ User name missing in database, updating with Firebase Auth name');
+          }
           user = user.copyWith(name: authService.currentUser!.displayName!);
           await _databaseService.updateUser(user);
         }
@@ -106,7 +110,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
       }
     } catch (e) {
-      print('❌ Error loading user data: $e');
+      if (kDebugMode) {
+        print('❌ Error loading user data: $e');
+      }
       setState(() {
         _isLoading = false;
       });
@@ -124,8 +130,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Row(
           children: [
             Icon(Icons.person_outline, color: Colors.blue.shade500),
-            SizedBox(width: 8),
-            Text('Edit Name'),
+            const SizedBox(width: 8),
+            const Text('Edit Name'),
           ],
         ),
         content: TextField(
@@ -133,13 +139,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           decoration: InputDecoration(
             labelText: 'Full Name',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            prefixIcon: Icon(Icons.person),
+            prefixIcon: const Icon(Icons.person),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -152,14 +158,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   });
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
+                    const SnackBar(
                       content: Text('Name updated successfully'),
                       backgroundColor: Colors.green,
                     ),
                   );
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
+                    const SnackBar(
                       content: Text('Error updating name'),
                       backgroundColor: Colors.red,
                     ),
@@ -167,7 +173,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
               }
             },
-            child: Text('Save'),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -244,7 +250,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Row(
           children: [
             Icon(icon, color: color),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             Text(title),
           ],
         ),
@@ -255,17 +261,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: () {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
+                  const SnackBar(
                     content: Text('Please set up biometrics in your device Settings > Security'),
                     duration: Duration(seconds: 4),
                   ),
                 );
               },
-              child: Text('Open Settings'),
+              child: const Text('Open Settings'),
             ),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
+            child: const Text('OK'),
           ),
         ],
       ),
@@ -278,7 +284,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (!biometricService.isBiometricAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Biometric authentication is not available on this device')),
+        const SnackBar(content: Text('Biometric authentication is not available on this device')),
       );
       return;
     }
@@ -291,20 +297,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: Row(
             children: [
               Icon(biometricService.biometricIcon, color: Colors.orange.shade500),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text('Disable ${biometricService.biometricTypeText}'),
             ],
           ),
-          content: Text('Are you sure you want to disable biometric authentication?'),
+          content: const Text('Are you sure you want to disable biometric authentication?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel'),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              child: Text('Disable', style: TextStyle(color: Colors.white)),
+              child: const Text('Disable', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -320,8 +326,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     // Show enable dialog
-    final _passwordController = TextEditingController();
-    bool _isPasswordVisible = false;
+    final passwordController = TextEditingController();
+    bool isPasswordVisible = false;
 
     bool? confirmed = await showDialog<bool>(
       context: context,
@@ -330,7 +336,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: Row(
             children: [
               Icon(biometricService.biometricIcon, color: Colors.blue.shade500),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text('Enable ${biometricService.biometricTypeText}'),
             ],
           ),
@@ -338,28 +344,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(biometricService.biometricIcon, size: 64, color: Colors.blue.shade500),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 'Enable ${biometricService.biometricTypeText} for quick and secure access to Spendwise.',
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               TextFormField(
-                controller: _passwordController,
-                obscureText: !_isPasswordVisible,
+                controller: passwordController,
+                obscureText: !isPasswordVisible,
                 decoration: InputDecoration(
                   labelText: 'Confirm your password',
-                  prefixIcon: Icon(Icons.lock_outline),
+                  prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
-                    icon: Icon(_isPasswordVisible ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                    icon: Icon(isPasswordVisible ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => isPasswordVisible = !isPasswordVisible),
                   ),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Container(
-                padding: EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.green.shade50,
                   borderRadius: BorderRadius.circular(8),
@@ -368,7 +374,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Row(
                   children: [
                     Icon(Icons.security, color: Colors.green.shade600, size: 20),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Your credentials will be stored securely on this device.',
@@ -383,25 +389,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel'),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
-                if (_passwordController.text.isNotEmpty) {
+                if (passwordController.text.isNotEmpty) {
                   Navigator.pop(context, true);
                 }
               },
-              child: Text('Enable'),
+              child: const Text('Enable'),
             ),
           ],
         ),
       ),
     );
 
-    if (confirmed == true && _passwordController.text.isNotEmpty) {
+    if (confirmed == true && passwordController.text.isNotEmpty) {
       bool success = await biometricService.enableBiometric(
         authService.currentUser!.email!,
-        _passwordController.text,
+        passwordController.text,
       );
 
       if (success) {
@@ -441,7 +447,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
 
       // Optional: Track sharing for analytics
-      print('App shared via link');
+      if (kDebugMode) {
+        print('App shared via link');
+      }
 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -460,15 +468,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Row(
           children: [
             Icon(Icons.logout, color: Colors.red.shade500),
-            SizedBox(width: 8),
-            Text('Sign Out'),
+            const SizedBox(width: 8),
+            const Text('Sign Out'),
           ],
         ),
-        content: Text('Are you sure you want to sign out?'),
+        content: const Text('Are you sure you want to sign out?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -476,7 +484,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               await Provider.of<AuthService>(context, listen: false).signOut();
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Sign Out', style: TextStyle(color: Colors.white)),
+            child: const Text('Sign Out', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -494,7 +502,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await launchUrl(emailUri);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open email app')),
+        const SnackBar(content: Text('Could not open email app')),
       );
     }
   }
@@ -514,14 +522,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Bankrekening succesvol bijgewerkt'),
             backgroundColor: Colors.green,
           ),
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Fout bij bijwerken bankrekening'),
             backgroundColor: Colors.red,
           ),
@@ -537,7 +545,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await launchUrl(playStoreUri, mode: LaunchMode.externalApplication);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Coming soon to Google Play Store!')),
+        const SnackBar(content: Text('Coming soon to Google Play Store!')),
       );
     }
   }
@@ -546,15 +554,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: Text('Settings')),
-        body: Center(child: CircularProgressIndicator()),
+        appBar: AppBar(title: const Text('Settings')),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Settings'),
+        title: const Text('Settings'),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
@@ -567,12 +575,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               width: double.infinity,
               decoration: BoxDecoration(
                 color: Theme.of(context).primaryColor,
-                borderRadius: BorderRadius.only(
+                borderRadius: const BorderRadius.only(
                   bottomLeft: Radius.circular(20),
                   bottomRight: Radius.circular(20),
                 ),
               ),
-              padding: EdgeInsets.fromLTRB(24, 0, 24, 24),
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
               child: Column(
                 children: [
                   CircleAvatar(
@@ -582,17 +590,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? NetworkImage(_currentUser!.photoUrl!)
                         : null,
                     child: _currentUser?.photoUrl == null
-                        ? Icon(
+                        ? const Icon(
                       Icons.person,
                       size: 50,
                       color: Colors.white,
                     )
                         : null,
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Text(
                     _currentUser?.name ?? 'User',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -600,7 +608,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   Text(
                     _currentUser?.email ?? '',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 16,
                     ),
@@ -609,11 +617,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
 
             // Settings Options
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
                   // Account Section
@@ -640,11 +648,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         : 'Geen bankrekening toegevoegd',
                     onTap: _showBankAccountDialog,
                     trailing: _currentUser?.bankAccount != null
-                        ? Icon(Icons.check_circle, color: Colors.green, size: 20)
+                        ? const Icon(Icons.check_circle, color: Colors.green, size: 20)
                         : Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
                   ),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // Appearance Section
                   _buildSectionHeader('Appearance'),
@@ -663,7 +671,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // Security Section
                   _buildSectionHeader('Security'),
@@ -695,7 +703,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // Notifications Section - Now simplified to single tile
                   _buildSectionHeader('Notifications'),
@@ -707,13 +715,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => NotificationSettingsScreen(),
+                          builder: (context) => const NotificationSettingsScreen(),
                         ),
                       );
                     },
                   ),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // Support Section
                   _buildSectionHeader('Support & Feedback'),
@@ -745,19 +753,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             : 'Tap to check for updates',
                         onTap: _checkForUpdates,
                         trailing: updateService.isCheckingForUpdate
-                            ? SizedBox(
+                            ? const SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                             : updateService.updateAvailable
                             ? Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.red,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Text(
+                          child: const Text(
                             'NEW',
                             style: TextStyle(
                               color: Colors.white,
@@ -790,16 +798,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 color: Colors.blue.shade500,
                                 borderRadius: BorderRadius.circular(15),
                               ),
-                              child: Icon(
+                              child: const Icon(
                                 Icons.account_balance_wallet,
                                 color: Colors.white,
                                 size: 30,
                               ),
                             ),
                             children: [
-                              Text('Split expenses with friends easily and efficiently.'),
-                              SizedBox(height: 16),
-                              Text('Made with ❤️ for easy expense sharing'),
+                              const Text('Split expenses with friends easily and efficiently.'),
+                              const SizedBox(height: 16),
+                              const Text('Made with ❤️ for easy expense sharing'),
                             ],
                           );
                         },
@@ -807,16 +815,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
 
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
                   // Sign Out Button
                   Container(
                     width: double.infinity,
-                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: ElevatedButton.icon(
                       onPressed: _showSignOutDialog,
-                      icon: Icon(Icons.logout, color: Colors.white),
-                      label: Text(
+                      icon: const Icon(Icons.logout, color: Colors.white),
+                      label: const Text(
                         'Sign Out',
                         style: TextStyle(
                           color: Colors.white,
@@ -826,7 +834,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red.shade500,
-                        padding: EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -835,7 +843,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
 
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -847,7 +855,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: EdgeInsets.only(left: 8, bottom: 8),
+      padding: const EdgeInsets.only(left: 8, bottom: 8),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Text(
@@ -870,7 +878,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Widget? trailing,
   }) {
     return Card(
-      margin: EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
       color: Theme.of(context).cardColor,
       child: ListTile(
@@ -880,7 +888,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         title: Text(
           title,
-          style: TextStyle(
+          style: const TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 16,
           ),

@@ -1,4 +1,4 @@
-import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
@@ -6,7 +6,6 @@ import '../../services/database_service.dart';
 import '../../models/group_model.dart';
 import '../../models/expense_model.dart';
 import '../../models/user_model.dart';
-import '../../models/settlement_model.dart';
 
 // Group Insights Models
 class GroupInsight {
@@ -58,7 +57,7 @@ class GroupInsightsScreen extends StatefulWidget {
   final GroupModel group;
   final List<UserModel> members;
 
-  GroupInsightsScreen({
+  const GroupInsightsScreen({super.key,
     required this.group,
     required this.members,
   });
@@ -76,10 +75,9 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
   late Animation<double> _fadeAnimation;
   late Animation<double> _slideAnimation;
 
-  List<GroupInsight> _groupInsights = [];
-  List<GroupMemberStats> _memberStats = [];
+  final List<GroupInsight> _groupInsights = [];
+  final List<GroupMemberStats> _memberStats = [];
   List<ExpenseModel> _allExpenses = [];
-  List<SettlementModel> _settlements = [];
   bool _isLoading = true;
 
   @override
@@ -91,7 +89,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
 
   void _initializeAnimations() {
     _animationController = AnimationController(
-      duration: Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
 
@@ -127,7 +125,6 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
 
       // Load expenses and settlements
       _allExpenses = await _databaseService.streamGroupExpenses(widget.group.id).first;
-      _settlements = await _databaseService.streamGroupSettlements(widget.group.id).first;
 
       await _calculateMemberStats();
       await _generateGroupInsights(currentUserId);
@@ -135,7 +132,9 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
       // Start animations
       _animationController.forward();
     } catch (e) {
-      print('Error loading group insights: $e');
+      if (kDebugMode) {
+        print('Error loading group insights: $e');
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -235,11 +234,11 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
 
         if (hadActivity) {
           activeDays.add("${checkDate.year}-${checkDate.month}-${checkDate.day}");
-        } else if (activeDays.length > 0) {
+        } else if (activeDays.isNotEmpty) {
           break;
         }
 
-        checkDate = checkDate.subtract(Duration(days: 1));
+        checkDate = checkDate.subtract(const Duration(days: 1));
       }
 
       if (activeDays.length >= 3) {
@@ -345,7 +344,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
         if (daysSinceLastExpense >= 7) {
           _groupInsights.add(GroupInsight(
             title: "🎯 ${nextTreater.member.name}'s Turn",
-            description: "${nextTreater.member.name} hasn't paid for a group expense in ${daysSinceLastExpense} days. Time for them to treat the group!",
+            description: "${nextTreater.member.name} hasn't paid for a group expense in $daysSinceLastExpense days. Time for them to treat the group!",
             icon: Icons.person_pin,
             color: Colors.indigo,
             type: GroupInsightType.suggestion,
@@ -483,7 +482,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
     if (weekendExpenses > weekdayExpenses * 2) {
       _groupInsights.add(GroupInsight(
         title: "🎯 Weekday Opportunity",
-        description: "You're weekend warriors! ${weekendExpenses} weekend expenses vs ${weekdayExpenses} weekday ones. Try some weekday hangouts for variety!",
+        description: "You're weekend warriors! $weekendExpenses weekend expenses vs $weekdayExpenses weekday ones. Try some weekday hangouts for variety!",
         icon: Icons.calendar_today,
         color: Colors.teal,
         type: GroupInsightType.suggestion,
@@ -577,7 +576,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
           child: Opacity(
             opacity: _fadeAnimation.value,
             child: Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
                   Expanded(
@@ -588,7 +587,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
                       color: Colors.blue,
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _buildSummaryCard(
                       title: "Group Spending",
@@ -597,7 +596,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
                       color: Colors.green,
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _buildSummaryCard(
                       title: "Members",
@@ -622,7 +621,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
     required Color color,
   }) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
@@ -631,7 +630,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
       child: Column(
         children: [
           Icon(icon, color: color, size: 24),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             value,
             style: TextStyle(
@@ -659,7 +658,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
       builder: (context, child) {
         return ListView.builder(
           shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
+          physics: const NeverScrollableScrollPhysics(),
           itemCount: _groupInsights.length,
           itemBuilder: (context, index) {
             return TweenAnimationBuilder<double>(
@@ -683,7 +682,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
 
   Widget _buildInsightCard(GroupInsight insight) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Card(
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -700,14 +699,14 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
             ),
           ),
           child: Padding(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     Container(
-                      padding: EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: insight.color,
                         borderRadius: BorderRadius.circular(12),
@@ -718,7 +717,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
                         size: 24,
                       ),
                     ),
-                    SizedBox(width: 16),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -731,9 +730,9 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
                               color: insight.color,
                             ),
                           ),
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: insight.color.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(8),
@@ -752,7 +751,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Text(
                   insight.description,
                   style: TextStyle(
@@ -762,7 +761,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
                   ),
                 ),
                 if (insight.data != null) ...[
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   _buildInsightMetric(insight),
                 ],
               ],
@@ -799,10 +798,10 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
       }
     }
 
-    if (metricText == null) return SizedBox.shrink();
+    if (metricText == null) return const SizedBox.shrink();
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.8),
         borderRadius: BorderRadius.circular(16),
@@ -813,7 +812,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
         children: [
           if (metricIcon != null) ...[
             Icon(metricIcon, size: 16, color: insight.color),
-            SizedBox(width: 4),
+            const SizedBox(width: 4),
           ],
           Text(
             metricText,
@@ -862,8 +861,8 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
             Text(
               'Analyzing your group dynamics...',
               style: TextStyle(
@@ -876,14 +875,14 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
           : RefreshIndicator(
         onRefresh: _loadGroupInsights,
         child: SingleChildScrollView(
-          physics: AlwaysScrollableScrollPhysics(),
+          physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             children: [
               // Header with group info
               Container(
                 width: double.infinity,
-                margin: EdgeInsets.all(16),
-                padding: EdgeInsets.all(20),
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -898,7 +897,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       '🔍 Group Analysis',
                       style: TextStyle(
                         color: Colors.white,
@@ -906,7 +905,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
                       'Discover patterns and insights about your group\'s spending habits and social dynamics!',
                       style: TextStyle(
@@ -924,11 +923,11 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
               // Insights
               if (_groupInsights.isNotEmpty) ...[
                 Padding(
-                  padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
                   child: Row(
                     children: [
                       Icon(Icons.auto_awesome, color: theme.primaryColor),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Text(
                         'Group Insights',
                         style: TextStyle(
@@ -942,7 +941,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
                 ),
                 _buildInsightsList(),
               ] else ...[
-                Container(
+                SizedBox(
                   height: MediaQuery.of(context).size.height * 0.3,
                   child: Center(
                     child: Column(
@@ -953,7 +952,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
                           size: 64,
                           color: colorScheme.onSurface.withOpacity(0.4),
                         ),
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
                         Text(
                           'Not enough data yet',
                           style: TextStyle(
@@ -962,7 +961,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text(
                           'Add more expenses to unlock group insights!',
                           textAlign: TextAlign.center,
@@ -977,7 +976,7 @@ class _GroupInsightsScreenState extends State<GroupInsightsScreen>
               ],
 
               // Bottom padding
-              SizedBox(height: 100),
+              const SizedBox(height: 100),
             ],
           ),
         ),

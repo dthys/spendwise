@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -96,7 +97,7 @@ class BankingService {
     String formatted = '';
     for (int i = 0; i < iban.length; i += 4) {
       if (i + 4 < iban.length) {
-        formatted += iban.substring(i, i + 4) + ' ';
+        formatted += '${iban.substring(i, i + 4)} ';
       } else {
         formatted += iban.substring(i);
       }
@@ -125,7 +126,9 @@ class BankingService {
   // Enhanced app detection with multiple methods
   static Future<List<String>> getInstalledBankingApps() async {
     List<String> installedApps = [];
-    print('🔍 Checking for installed banking apps...');
+    if (kDebugMode) {
+      print('🔍 Checking for installed banking apps...');
+    }
 
     for (String bank in _bankingApps.keys) {
       bool isInstalled = false;
@@ -135,11 +138,15 @@ class BankingService {
       try {
         String checkUrl = appInfo['check_scheme']!;
         if (await canLaunchUrl(Uri.parse(checkUrl))) {
-          print('✅ Found $bank via main scheme: $checkUrl');
+          if (kDebugMode) {
+            print('✅ Found $bank via main scheme: $checkUrl');
+          }
           isInstalled = true;
         }
       } catch (e) {
-        print('❌ $bank main scheme failed: $e');
+        if (kDebugMode) {
+          print('❌ $bank main scheme failed: $e');
+        }
       }
 
       // Method 2: Try alternative schemes
@@ -154,7 +161,9 @@ class BankingService {
         for (String altScheme in alternativeSchemes) {
           try {
             if (await canLaunchUrl(Uri.parse(altScheme))) {
-              print('✅ Found $bank via alternative scheme: $altScheme');
+              if (kDebugMode) {
+                print('✅ Found $bank via alternative scheme: $altScheme');
+              }
               isInstalled = true;
               break;
             }
@@ -167,12 +176,18 @@ class BankingService {
       if (isInstalled) {
         installedApps.add(bank);
       } else {
-        print('❌ $bank not found');
+        if (kDebugMode) {
+          print('❌ $bank not found');
+        }
       }
     }
 
-    print('📱 Total installed banking apps: ${installedApps.length}');
-    print('📱 Installed apps: $installedApps');
+    if (kDebugMode) {
+      print('📱 Total installed banking apps: ${installedApps.length}');
+    }
+    if (kDebugMode) {
+      print('📱 Installed apps: $installedApps');
+    }
 
     // For development/testing - uncomment to simulate apps
     // if (installedApps.isEmpty) {
@@ -192,7 +207,9 @@ class BankingService {
     required String description,
   }) async {
     if (!_bankingApps.containsKey(bankApp)) {
-      print('❌ Unknown banking app: $bankApp');
+      if (kDebugMode) {
+        print('❌ Unknown banking app: $bankApp');
+      }
       return false;
     }
 
@@ -216,11 +233,15 @@ class BankingService {
       '${appInfo['scheme']}://',
     ];
 
-    print('🚀 Attempting to open $bankApp...');
+    if (kDebugMode) {
+      print('🚀 Attempting to open $bankApp...');
+    }
 
     for (int i = 0; i < urlsToTry.length; i++) {
       String url = urlsToTry[i];
-      print('🔗 Trying URL ${i + 1}: $url');
+      if (kDebugMode) {
+        print('🔗 Trying URL ${i + 1}: $url');
+      }
 
       try {
         if (await canLaunchUrl(Uri.parse(url))) {
@@ -230,20 +251,30 @@ class BankingService {
           );
 
           if (launched) {
-            print('✅ Successfully opened $bankApp with URL: $url');
+            if (kDebugMode) {
+              print('✅ Successfully opened $bankApp with URL: $url');
+            }
             return true;
           } else {
-            print('❌ Failed to launch $bankApp with URL: $url');
+            if (kDebugMode) {
+              print('❌ Failed to launch $bankApp with URL: $url');
+            }
           }
         } else {
-          print('❌ Cannot launch URL: $url');
+          if (kDebugMode) {
+            print('❌ Cannot launch URL: $url');
+          }
         }
       } catch (e) {
-        print('❌ Error with URL $url: $e');
+        if (kDebugMode) {
+          print('❌ Error with URL $url: $e');
+        }
       }
     }
 
-    print('❌ Failed to open $bankApp with any URL');
+    if (kDebugMode) {
+      print('❌ Failed to open $bankApp with any URL');
+    }
     return false;
   }
 
@@ -255,7 +286,9 @@ class BankingService {
     required String description,
   }) async {
     try {
-      print('🏦 Opening banking app via Bancontact...');
+      if (kDebugMode) {
+        print('🏦 Opening banking app via Bancontact...');
+      }
 
       // Bancontact payment URL format
       String cleanIBAN = recipientIBAN.replaceAll(' ', '');
@@ -283,13 +316,17 @@ class BankingService {
 
       for (int i = 0; i < bancontactUrls.length; i++) {
         String url = bancontactUrls[i];
-        print('🔗 Trying Bancontact URL ${i + 1}: $url');
+        if (kDebugMode) {
+          print('🔗 Trying Bancontact URL ${i + 1}: $url');
+        }
 
         try {
           Uri uri = Uri.parse(url);
 
           if (await canLaunchUrl(uri)) {
-            print('✅ Can launch: $url');
+            if (kDebugMode) {
+              print('✅ Can launch: $url');
+            }
 
             bool launched = await launchUrl(
               uri,
@@ -297,24 +334,36 @@ class BankingService {
             );
 
             if (launched) {
-              print('✅ Successfully opened banking selection via: $url');
+              if (kDebugMode) {
+                print('✅ Successfully opened banking selection via: $url');
+              }
               return true;
             } else {
-              print('❌ Failed to launch: $url');
+              if (kDebugMode) {
+                print('❌ Failed to launch: $url');
+              }
             }
           } else {
-            print('❌ Cannot launch: $url');
+            if (kDebugMode) {
+              print('❌ Cannot launch: $url');
+            }
           }
         } catch (e) {
-          print('❌ Error with URL $url: $e');
+          if (kDebugMode) {
+            print('❌ Error with URL $url: $e');
+          }
           continue;
         }
       }
 
-      print('❌ All Bancontact URLs failed');
+      if (kDebugMode) {
+        print('❌ All Bancontact URLs failed');
+      }
       return false;
     } catch (e) {
-      print('❌ Error in Bancontact payment: $e');
+      if (kDebugMode) {
+        print('❌ Error in Bancontact payment: $e');
+      }
       return false;
     }
   }
@@ -326,7 +375,9 @@ class BankingService {
     required double amount,
     required String description,
   }) async {
-    print('🎯 Smart banking app opening...');
+    if (kDebugMode) {
+      print('🎯 Smart banking app opening...');
+    }
 
     // Step 1: Try Bancontact payment link (shows all compatible apps)
     bool bancontactSuccess = await openBankingAppViaBancontact(
@@ -337,11 +388,15 @@ class BankingService {
     );
 
     if (bancontactSuccess) {
-      print('✅ Bancontact payment link opened successfully');
+      if (kDebugMode) {
+        print('✅ Bancontact payment link opened successfully');
+      }
       return true;
     }
 
-    print('⚠️ Bancontact failed, trying specific banking apps...');
+    if (kDebugMode) {
+      print('⚠️ Bancontact failed, trying specific banking apps...');
+    }
 
     // Step 2: Fallback to specific banking app detection
     final installedApps = await getInstalledBankingApps();
@@ -356,12 +411,16 @@ class BankingService {
       );
 
       if (specificAppSuccess) {
-        print('✅ Specific banking app opened successfully');
+        if (kDebugMode) {
+          print('✅ Specific banking app opened successfully');
+        }
         return true;
       }
     }
 
-    print('❌ All banking options failed');
+    if (kDebugMode) {
+      print('❌ All banking options failed');
+    }
     return false;
   }
 
@@ -396,7 +455,9 @@ class BankingService {
     required double amount,
     required String description,
   }) async {
-    print('🔄 Trying general banking fallback...');
+    if (kDebugMode) {
+      print('🔄 Trying general banking fallback...');
+    }
 
     // Try some general banking schemes
     final generalUrls = [
@@ -408,22 +469,30 @@ class BankingService {
     bool launched = false;
     for (String url in generalUrls) {
       try {
-        print('🔗 Trying general URL: $url');
+        if (kDebugMode) {
+          print('🔗 Trying general URL: $url');
+        }
         if (await canLaunchUrl(Uri.parse(url))) {
           launched = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
           if (launched) {
-            print('✅ Successfully opened general banking app');
+            if (kDebugMode) {
+              print('✅ Successfully opened general banking app');
+            }
             break;
           }
         }
       } catch (e) {
-        print('❌ General URL failed: $e');
+        if (kDebugMode) {
+          print('❌ General URL failed: $e');
+        }
         continue;
       }
     }
 
     if (!launched) {
-      print('❌ All general banking URLs failed, copying IBAN instead');
+      if (kDebugMode) {
+        print('❌ All general banking URLs failed, copying IBAN instead');
+      }
       await Clipboard.setData(ClipboardData(text: recipientIBAN));
     }
   }
@@ -440,7 +509,9 @@ class BankingService {
       return;
     }
 
-    print('💳 Opening payment dialog for ${recipient.name}');
+    if (kDebugMode) {
+      print('💳 Opening payment dialog for ${recipient.name}');
+    }
     final installedApps = await getInstalledBankingApps();
 
     showModalBottomSheet(
@@ -463,8 +534,8 @@ class BankingService {
         title: Row(
           children: [
             Icon(Icons.account_balance, color: Colors.orange.shade500),
-            SizedBox(width: 8),
-            Text('Geen bankrekening'),
+            const SizedBox(width: 8),
+            const Text('Geen bankrekening'),
           ],
         ),
         content: Text(
@@ -473,7 +544,7 @@ class BankingService {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
+            child: const Text('OK'),
           ),
         ],
       ),
@@ -489,12 +560,12 @@ class PaymentBottomSheet extends StatelessWidget {
   final List<String> installedBankingApps;
 
   const PaymentBottomSheet({
-    Key? key,
+    super.key,
     required this.recipient,
     required this.amount,
     required this.description,
     required this.installedBankingApps,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -502,13 +573,13 @@ class PaymentBottomSheet extends StatelessWidget {
       height: MediaQuery.of(context).size.height * 0.85, // Limit height
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         children: [
           // Handle bar
           Container(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Container(
               width: 40,
               height: 4,
@@ -522,23 +593,23 @@ class PaymentBottomSheet extends StatelessWidget {
           // Scrollable content
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(24, 0, 24, 24),
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Title
                   Text(
                     'Betaal ${recipient.name}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // Payment details
                   Container(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.blue.shade50,
                       borderRadius: BorderRadius.circular(12),
@@ -547,31 +618,31 @@ class PaymentBottomSheet extends StatelessWidget {
                     child: Column(
                       children: [
                         _buildDetailRow('Bedrag', '€${amount.toStringAsFixed(2)}', Icons.euro),
-                        Divider(height: 16),
+                        const Divider(height: 16),
                         _buildDetailRow('Naar', recipient.name, Icons.person),
-                        Divider(height: 16),
+                        const Divider(height: 16),
                         _buildDetailRow('IBAN', BankingService.formatIBAN(recipient.bankAccount!), Icons.account_balance),
-                        Divider(height: 16),
+                        const Divider(height: 16),
                         _buildDetailRow('Omschrijving', description, Icons.description),
                       ],
                     ),
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
                   // Show different options based on what's available
                   if (installedBankingApps.isNotEmpty) ...[
-                    Text(
+                    const Text(
                       'Kies je bank app:',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
                     // Installed banking apps
                     ...installedBankingApps.map((bank) => Padding(
-                      padding: EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.only(bottom: 8),
                       child: _buildBankOption(
                         context,
                         bank,
@@ -580,13 +651,13 @@ class PaymentBottomSheet extends StatelessWidget {
                         true,
                       ),
                     )),
-                    SizedBox(height: 16),
-                    Divider(),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 16),
                   ] else ...[
                     // No apps installed - show helpful message
                     Container(
-                      padding: EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(12),
@@ -595,7 +666,7 @@ class PaymentBottomSheet extends StatelessWidget {
                       child: Column(
                         children: [
                           Icon(Icons.info, color: Colors.orange.shade600, size: 32),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text(
                             'Geen bank apps gevonden',
                             style: TextStyle(
@@ -603,7 +674,7 @@ class PaymentBottomSheet extends StatelessWidget {
                               color: Colors.orange.shade700,
                             ),
                           ),
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           Text(
                             'Installeer je bank app of gebruik de opties hieronder',
                             textAlign: TextAlign.center,
@@ -615,22 +686,22 @@ class PaymentBottomSheet extends StatelessWidget {
                         ],
                       ),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                   ],
 
                   // Always show these fallback options
-                  Text(
+                  const Text(
                     'Andere opties:',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
                   // Copy IBAN option
                   Padding(
-                    padding: EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.only(bottom: 8),
                     child: _buildBankOption(
                       context,
                       'copy',
@@ -643,7 +714,7 @@ class PaymentBottomSheet extends StatelessWidget {
 
                   // Copy all details option
                   Padding(
-                    padding: EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.only(bottom: 8),
                     child: _buildBankOption(
                       context,
                       'copy_all',
@@ -664,7 +735,7 @@ class PaymentBottomSheet extends StatelessWidget {
                     subtitle: 'In browser',
                   ),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
@@ -678,7 +749,7 @@ class PaymentBottomSheet extends StatelessWidget {
     return Row(
       children: [
         Icon(icon, size: 20, color: Colors.blue.shade600),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(
           flex: 2,
           child: Text(
@@ -693,7 +764,7 @@ class PaymentBottomSheet extends StatelessWidget {
           flex: 3,
           child: Text(
             value,
-            style: TextStyle(fontWeight: FontWeight.w600),
+            style: const TextStyle(fontWeight: FontWeight.w600),
             textAlign: TextAlign.right,
           ),
         ),
@@ -719,14 +790,14 @@ class PaymentBottomSheet extends StatelessWidget {
         ),
         title: Text(
           bankName,
-          style: TextStyle(fontWeight: FontWeight.w600),
+          style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         subtitle: subtitle != null
-            ? Text(subtitle, style: TextStyle(fontSize: 12))
+            ? Text(subtitle, style: const TextStyle(fontSize: 12))
             : (isInstalled
             ? Text('Geïnstalleerd', style: TextStyle(color: Colors.green.shade600))
             : null),
-        trailing: Icon(Icons.arrow_forward_ios, size: 16),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () async {
           Navigator.pop(context);
 
@@ -775,7 +846,7 @@ Omschrijving: $description
         backgroundColor: backgroundColor,
         behavior: SnackBarBehavior.floating,
         margin: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).size.height - 100),
-        duration: Duration(seconds: 2),
+        duration: const Duration(seconds: 2),
       ),
     );
   }

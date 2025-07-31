@@ -5,9 +5,9 @@ class SplashScreen extends StatefulWidget {
   final Widget nextScreen;
 
   const SplashScreen({
-    Key? key,
+    super.key,
     required this.nextScreen,
-  }) : super(key: key);
+  });
 
   @override
   _SplashScreenState createState() => _SplashScreenState();
@@ -32,17 +32,17 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Initialize animation controllers
     _fadeController = AnimationController(
-      duration: Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
 
     _scaleController = AnimationController(
-      duration: Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
 
     _slideController = AnimationController(
-      duration: Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 600),
       vsync: this,
     );
 
@@ -64,7 +64,7 @@ class _SplashScreenState extends State<SplashScreen>
     ));
 
     _slideAnimation = Tween<Offset>(
-      begin: Offset(0, 0.3),
+      begin: const Offset(0, 0.3),
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _slideController,
@@ -78,15 +78,15 @@ class _SplashScreenState extends State<SplashScreen>
   void _startAnimationSequence() async {
     // Start fade and scale animations
     _fadeController.forward();
-    await Future.delayed(Duration(milliseconds: 200));
+    await Future.delayed(const Duration(milliseconds: 200));
     _scaleController.forward();
 
     // Start slide animation
-    await Future.delayed(Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 300));
     _slideController.forward();
 
     // Wait for total splash duration
-    await Future.delayed(Duration(milliseconds: 2000));
+    await Future.delayed(const Duration(milliseconds: 2000));
 
     // Navigate to next screen
     _navigateToNextScreen();
@@ -101,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen>
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => widget.nextScreen,
-        transitionDuration: Duration(milliseconds: 500),
+        transitionDuration: const Duration(milliseconds: 500),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: animation,
@@ -134,14 +134,14 @@ class _SplashScreenState extends State<SplashScreen>
             end: Alignment.bottomRight,
             colors: isDark
                 ? [
-              Color(0xFF1E3A8A), // Dark blue
-              Color(0xFF1E40AF), // Medium blue
-              Color(0xFF3B82F6), // Light blue
+              const Color(0xFF1E3A8A), // Dark blue
+              const Color(0xFF1E40AF), // Medium blue
+              const Color(0xFF3B82F6), // Light blue
             ]
                 : [
-              Color(0xFF3B82F6), // Light blue
-              Color(0xFF1D4ED8), // Medium blue
-              Color(0xFF1E40AF), // Dark blue
+              const Color(0xFF3B82F6), // Light blue
+              const Color(0xFF1D4ED8), // Medium blue
+              const Color(0xFF1E40AF), // Dark blue
             ],
           ),
         ),
@@ -175,11 +175,11 @@ class _SplashScreenState extends State<SplashScreen>
                                   BoxShadow(
                                     color: Colors.black.withOpacity(0.3),
                                     blurRadius: 20,
-                                    offset: Offset(0, 10),
+                                    offset: const Offset(0, 10),
                                   ),
                                 ],
                               ),
-                              child: Icon(
+                              child: const Icon(
                                 Icons.account_balance_wallet,
                                 size: 60,
                                 color: Color(0xFF1E40AF),
@@ -190,7 +190,7 @@ class _SplashScreenState extends State<SplashScreen>
                       },
                     ),
 
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
                     // Animated app name
                     SlideTransition(
@@ -199,7 +199,7 @@ class _SplashScreenState extends State<SplashScreen>
                         opacity: _fadeAnimation,
                         child: Column(
                           children: [
-                            Text(
+                            const Text(
                               'Spendwise',
                               style: TextStyle(
                                 fontSize: 36,
@@ -208,7 +208,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 letterSpacing: 1.2,
                               ),
                             ),
-                            SizedBox(height: 8),
+                            const SizedBox(height: 8),
                             Text(
                               'Split expenses with ease',
                               style: TextStyle(
@@ -244,7 +244,7 @@ class _SplashScreenState extends State<SplashScreen>
                         ),
                       ),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     FadeTransition(
                       opacity: _fadeAnimation,
                       child: Text(
@@ -276,10 +276,10 @@ class SpendwiseIcon extends StatelessWidget {
   final Color? color;
 
   const SpendwiseIcon({
-    Key? key,
+    super.key,
     this.size = 60,
     this.color,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -288,7 +288,7 @@ class SpendwiseIcon extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(size * 0.2),
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
@@ -311,9 +311,9 @@ class MinimalSplashScreen extends StatefulWidget {
   final Widget nextScreen;
 
   const MinimalSplashScreen({
-    Key? key,
+    super.key,
     required this.nextScreen,
-  }) : super(key: key);
+  });
 
   @override
   _MinimalSplashScreenState createState() => _MinimalSplashScreenState();
@@ -329,7 +329,7 @@ class _MinimalSplashScreenState extends State<MinimalSplashScreen>
     super.initState();
 
     _controller = AnimationController(
-      duration: Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
 
@@ -344,7 +344,7 @@ class _MinimalSplashScreenState extends State<MinimalSplashScreen>
     // Start animation and navigate
     _controller.forward();
 
-    Future.delayed(Duration(milliseconds: 2500), () {
+    Future.delayed(const Duration(milliseconds: 2500), () {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => widget.nextScreen),
       );
@@ -364,7 +364,7 @@ class _MinimalSplashScreenState extends State<MinimalSplashScreen>
       body: Center(
         child: FadeTransition(
           opacity: _fadeAnimation,
-          child: Column(
+          child: const Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               SpendwiseIcon(size: 100),

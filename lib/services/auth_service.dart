@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user_model.dart';
@@ -46,7 +46,7 @@ class AuthService extends ChangeNotifier {
         await _databaseService.createUser(userModel);
 
         // Wait a moment to ensure Firestore write is complete
-        await Future.delayed(Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 500));
       }
 
       _isLoading = false;
@@ -66,7 +66,9 @@ class AuthService extends ChangeNotifier {
         errorMessage = 'Invalid email address';
       }
 
-      print('Registration error: $e'); // Debug
+      if (kDebugMode) {
+        print('Registration error: $e');
+      } // Debug
       return errorMessage;
     }
   }
@@ -109,7 +111,9 @@ class AuthService extends ChangeNotifier {
         errorMessage = 'Invalid email address';
       }
 
-      print('Sign in error: $e'); // Debug
+      if (kDebugMode) {
+        print('Sign in error: $e');
+      } // Debug
       return errorMessage;
     }
   }
@@ -120,7 +124,9 @@ class AuthService extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
-      print('=== GOOGLE SIGN IN DEBUG ===');
+      if (kDebugMode) {
+        print('=== GOOGLE SIGN IN DEBUG ===');
+      }
 
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
@@ -129,7 +135,9 @@ class AuthService extends ChangeNotifier {
         return 'Sign in cancelled';
       }
 
-      print('Google user signed in: ${googleUser.email}');
+      if (kDebugMode) {
+        print('Google user signed in: ${googleUser.email}');
+      }
 
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
@@ -139,7 +147,9 @@ class AuthService extends ChangeNotifier {
 
       UserCredential result = await _auth.signInWithCredential(credential);
 
-      print('Firebase Auth successful: ${result.user?.uid}');
+      if (kDebugMode) {
+        print('Firebase Auth successful: ${result.user?.uid}');
+      }
 
       // Create or update user in Firestore
       if (result.user != null) {
@@ -147,7 +157,9 @@ class AuthService extends ChangeNotifier {
           UserModel? existingUser = await _databaseService.getUser(result.user!.uid);
 
           if (existingUser == null) {
-            print('Creating new user in Firestore...');
+            if (kDebugMode) {
+              print('Creating new user in Firestore...');
+            }
             final userModel = UserModel.fromFirebaseUser(
               result.user!.uid,
               result.user!.displayName ?? 'Google User',
@@ -155,14 +167,22 @@ class AuthService extends ChangeNotifier {
               result.user!.photoURL,
             );
 
-            print('User model: ${userModel.toMap()}');
+            if (kDebugMode) {
+              print('User model: ${userModel.toMap()}');
+            }
             await _databaseService.createUser(userModel);
-            print('User created successfully in Firestore!');
+            if (kDebugMode) {
+              print('User created successfully in Firestore!');
+            }
           } else {
-            print('User already exists in Firestore: ${existingUser.email}');
+            if (kDebugMode) {
+              print('User already exists in Firestore: ${existingUser.email}');
+            }
           }
         } catch (firestoreError) {
-          print('Firestore error: $firestoreError');
+          if (kDebugMode) {
+            print('Firestore error: $firestoreError');
+          }
           // Continue anyway - don't fail the sign in
         }
       }
@@ -173,7 +193,9 @@ class AuthService extends ChangeNotifier {
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      print('Google Sign In error: $e'); // Debug
+      if (kDebugMode) {
+        print('Google Sign In error: $e');
+      } // Debug
       return 'Google Sign In failed';
     }
   }
@@ -230,7 +252,9 @@ class AuthService extends ChangeNotifier {
         errorMessage = 'Please sign out and sign in again before changing password';
       }
 
-      print('Change password error: $e');
+      if (kDebugMode) {
+        print('Change password error: $e');
+      }
       return errorMessage;
     }
   }
@@ -284,7 +308,9 @@ class AuthService extends ChangeNotifier {
         errorMessage = 'Please sign out and sign in again before changing email';
       }
 
-      print('Change email error: $e');
+      if (kDebugMode) {
+        print('Change email error: $e');
+      }
       return errorMessage;
     }
   }
@@ -304,7 +330,9 @@ class AuthService extends ChangeNotifier {
       await user.sendEmailVerification();
       return null; // Success
     } catch (e) {
-      print('Send email verification error: $e');
+      if (kDebugMode) {
+        print('Send email verification error: $e');
+      }
       return 'Failed to send verification email';
     }
   }

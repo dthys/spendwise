@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
@@ -81,6 +82,8 @@ class FriendSpendingComparison {
 }
 
 class SmartInsightsScreen extends StatefulWidget {
+  const SmartInsightsScreen({super.key});
+
   @override
   _SmartInsightsScreenState createState() => _SmartInsightsScreenState();
 }
@@ -101,16 +104,14 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
   bool _isLoading = true;
 
   // Insights data
-  List<SpendingInsight> _insights = [];
+  final List<SpendingInsight> _insights = [];
   List<CategorySpending> _categorySpending = [];
   List<MonthlyTrend> _monthlyTrends = [];
   List<FriendSpendingComparison> _friendComparisons = [];
 
   // Summary stats
   double _totalSpent = 0;
-  double _averageExpense = 0;
   int _totalExpenses = 0;
-  ExpenseCategory? _topCategory;
   String? _spendingStreak;
 
   @override
@@ -122,12 +123,12 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
 
   void _initializeAnimations() {
     _animationController = AnimationController(
-      duration: Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
 
     _chartAnimationController = AnimationController(
-      duration: Duration(milliseconds: 1800),
+      duration: const Duration(milliseconds: 1800),
       vsync: this,
     );
 
@@ -201,11 +202,13 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
 
       // Start animations
       _animationController.forward();
-      await Future.delayed(Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 300));
       _chartAnimationController.forward();
 
     } catch (e) {
-      print('❌ Error loading insights: $e');
+      if (kDebugMode) {
+        print('❌ Error loading insights: $e');
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -233,7 +236,6 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
         .where((expense) => expense.paidBy == currentUserId)
         .fold(0.0, (sum, expense) => sum + expense.amount);
 
-    _averageExpense = _totalExpenses > 0 ? _totalSpent / _totalExpenses : 0;
 
     // Find top spending category
     Map<ExpenseCategory, double> categoryTotals = {};
@@ -243,8 +245,6 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
     }
 
     if (categoryTotals.isNotEmpty) {
-      _topCategory = categoryTotals.entries
-          .reduce((a, b) => a.value > b.value ? a : b).key;
     }
 
     // Calculate spending streak
@@ -321,7 +321,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
 
     List<ExpenseModel> userPaidExpenses = _allExpenses
         .where((expense) => expense.paidBy == currentUserId)
-        .where((expense) => expense.date.isAfter(DateTime.now().subtract(Duration(days: 180))))
+        .where((expense) => expense.date.isAfter(DateTime.now().subtract(const Duration(days: 180))))
         .toList();
 
     for (ExpenseModel expense in userPaidExpenses) {
@@ -695,7 +695,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
     }
 
     // Long-term friendship celebration
-    DateTime sixMonthsAgo = DateTime.now().subtract(Duration(days: 180));
+    DateTime sixMonthsAgo = DateTime.now().subtract(const Duration(days: 180));
     Map<String, List<ExpenseModel>> longTermFriends = {};
 
     for (ExpenseModel expense in _allExpenses) {
@@ -822,13 +822,6 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
     }
   }
 
-  String _formatMonth(DateTime month) {
-    List<String> months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return months[month.month - 1];
-  }
 
   Widget _buildSummaryCards() {
     return AnimatedBuilder(
@@ -839,7 +832,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
           child: Opacity(
             opacity: _fadeAnimation.value,
             child: Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
                   Expanded(
@@ -850,7 +843,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                       color: Colors.blue,
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _buildSummaryCard(
                       title: "Group Expenses",
@@ -859,7 +852,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                       color: Colors.green,
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _buildSummaryCard(
                       title: "Friends",
@@ -884,7 +877,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
     required Color color,
   }) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
@@ -893,7 +886,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
       child: Column(
         children: [
           Icon(icon, color: color, size: 24),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             value,
             style: TextStyle(
@@ -920,7 +913,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
       builder: (context, child) {
         return ListView.builder(
           shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
+          physics: const NeverScrollableScrollPhysics(),
           itemCount: _insights.length,
           itemBuilder: (context, index) {
             return TweenAnimationBuilder<double>(
@@ -948,7 +941,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
         insight.data?.containsKey('totalOwed') == true;
 
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Card(
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -965,14 +958,14 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
             ),
           ),
           child: Padding(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     Container(
-                      padding: EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: insight.color,
                         borderRadius: BorderRadius.circular(12),
@@ -983,7 +976,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                         size: 24,
                       ),
                     ),
-                    SizedBox(width: 16),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -996,9 +989,9 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                               color: insight.color,
                             ),
                           ),
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: insight.color.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(8),
@@ -1017,7 +1010,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Text(
                   insight.description,
                   style: TextStyle(
@@ -1026,7 +1019,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                     height: 1.4,
                   ),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -1034,7 +1027,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                       _buildInsightMetric(insight),
                     ],
                     if (showActionButton) ...[
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       ElevatedButton(
                         onPressed: () => _handleInsightAction(insight),
                         style: ElevatedButton.styleFrom(
@@ -1049,7 +1042,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                       ),
                     ] else if (insight.data == null) ...[
                       // If no metric to show, just show some spacing
-                      SizedBox(),
+                      const SizedBox(),
                     ],
                   ],
                 ),
@@ -1067,7 +1060,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
         insight.data?.containsKey('totalOwed') == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Settlement features coming soon! 💰'),
+          content: const Text('Settlement features coming soon! 💰'),
           backgroundColor: insight.color,
         ),
       );
@@ -1097,10 +1090,10 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
       }
     }
 
-    if (metricText == null) return SizedBox.shrink();
+    if (metricText == null) return const SizedBox.shrink();
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.8),
         borderRadius: BorderRadius.circular(16),
@@ -1111,7 +1104,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
         children: [
           if (metricIcon != null) ...[
             Icon(metricIcon, size: 16, color: insight.color),
-            SizedBox(width: 4),
+            const SizedBox(width: 4),
           ],
           Text(
             metricText,
@@ -1126,25 +1119,25 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
   }
 
   Widget _buildCategoryChart() {
-    if (_categorySpending.isEmpty) return SizedBox.shrink();
+    if (_categorySpending.isEmpty) return const SizedBox.shrink();
 
     return AnimatedBuilder(
       animation: _chartAnimation,
       builder: (context, child) {
         return Container(
-          margin: EdgeInsets.all(16),
+          margin: const EdgeInsets.all(16),
           child: Card(
             elevation: 4,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.pie_chart, color: Colors.blue, size: 24),
-                      SizedBox(width: 12),
+                      const Icon(Icons.pie_chart, color: Colors.blue, size: 24),
+                      const SizedBox(width: 12),
                       Text(
                         'What You Treat Friends To',
                         style: TextStyle(
@@ -1155,18 +1148,18 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                       ),
                     ],
                   ),
-                  SizedBox(height: 20),
-                  Container(
+                  const SizedBox(height: 20),
+                  SizedBox(
                     height: 200,
                     child: CustomPaint(
-                      size: Size(double.infinity, 200),
+                      size: const Size(double.infinity, 200),
                       painter: CategoryPieChartPainter(
                         categories: _categorySpending,
                         animationValue: _chartAnimation.value,
                       ),
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   ...(_categorySpending.take(5).map((category) => _buildCategoryLegendItem(category))),
                 ],
               ),
@@ -1179,7 +1172,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
 
   Widget _buildCategoryLegendItem(CategorySpending category) {
     return Container(
-      margin: EdgeInsets.symmetric(vertical: 4),
+      margin: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Container(
@@ -1190,18 +1183,18 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
               borderRadius: BorderRadius.circular(4),
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Text(
             '${category.category.emoji} ${category.category.displayName}',
-            style: TextStyle(fontWeight: FontWeight.w500),
+            style: const TextStyle(fontWeight: FontWeight.w500),
           ),
-          Spacer(),
+          const Spacer(),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
                 '€${category.amount.toStringAsFixed(2)}',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               Text(
                 '${category.count} times',
@@ -1218,25 +1211,25 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
   }
 
   Widget _buildMonthlyTrendChart() {
-    if (_monthlyTrends.length < 2) return SizedBox.shrink();
+    if (_monthlyTrends.length < 2) return const SizedBox.shrink();
 
     return AnimatedBuilder(
       animation: _chartAnimation,
       builder: (context, child) {
         return Container(
-          margin: EdgeInsets.all(16),
+          margin: const EdgeInsets.all(16),
           child: Card(
             elevation: 4,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.show_chart, color: Colors.green, size: 24),
-                      SizedBox(width: 12),
+                      const Icon(Icons.show_chart, color: Colors.green, size: 24),
+                      const SizedBox(width: 12),
                       Text(
                         'Your Group Generosity Trend',
                         style: TextStyle(
@@ -1247,11 +1240,11 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                       ),
                     ],
                   ),
-                  SizedBox(height: 20),
-                  Container(
+                  const SizedBox(height: 20),
+                  SizedBox(
                     height: 150,
                     child: CustomPaint(
-                      size: Size(double.infinity, 150),
+                      size: const Size(double.infinity, 150),
                       painter: MonthlyTrendChartPainter(
                         trends: _monthlyTrends,
                         animationValue: _chartAnimation.value,
@@ -1268,22 +1261,22 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
   }
 
   Widget _buildTopFriends() {
-    if (_friendComparisons.isEmpty) return SizedBox.shrink();
+    if (_friendComparisons.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      margin: EdgeInsets.all(16),
+      margin: const EdgeInsets.all(16),
       child: Card(
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
-          padding: EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(Icons.people, color: Colors.pink, size: 24),
-                  SizedBox(width: 12),
+                  const Icon(Icons.people, color: Colors.pink, size: 24),
+                  const SizedBox(width: 12),
                   Text(
                     'Your Spending Squad',
                     style: TextStyle(
@@ -1294,7 +1287,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                   ),
                 ],
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               ...(_friendComparisons.take(3).toList().asMap().entries.map((entry) {
                 int index = entry.key;
                 FriendSpendingComparison friend = entry.value;
@@ -1324,8 +1317,8 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
     String medal = index < 3 ? medals[index] : '${index + 1}';
 
     return Container(
-      margin: EdgeInsets.symmetric(vertical: 8),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.pink.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
@@ -1335,9 +1328,9 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
         children: [
           Text(
             medal,
-            style: TextStyle(fontSize: 20),
+            style: const TextStyle(fontSize: 20),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           CircleAvatar(
             backgroundImage: friend.friend.photoUrl != null
                 ? NetworkImage(friend.friend.photoUrl!)
@@ -1346,21 +1339,21 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
             child: friend.friend.photoUrl == null
                 ? Text(
               friend.friend.name.substring(0, 1).toUpperCase(),
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.pink,
                 fontWeight: FontWeight.bold,
               ),
             )
                 : null,
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   friend.friend.name,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 16,
                   ),
@@ -1380,7 +1373,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
             children: [
               Text(
                 '€${friend.totalShared.toStringAsFixed(2)}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.pink,
                 ),
@@ -1416,183 +1409,8 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
     }
   }
 
-  void _showFairnessDialog(SpendingInsight insight) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.balance, color: insight.color),
-            SizedBox(width: 8),
-            Text('Keep It Fair'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(insight.description),
-            SizedBox(height: 16),
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: insight.color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    '⚖️ Friendship Tips:',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  SizedBox(height: 8),
-                  Text('• Talk openly about money\n• Take turns treating each other\n• Use split bills for big expenses\n• Keep friendships drama-free!'),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Got It'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Settlement reminders coming soon! 💰'),
-                  backgroundColor: insight.color,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: insight.color),
-            child: Text('Send Reminder', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
 
-  void _showSocialInsightDetails(SpendingInsight insight) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(insight.icon, color: insight.color),
-            SizedBox(width: 8),
-            Text('Social Connection'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(insight.description),
-            SizedBox(height: 16),
-            Text(
-              '🎉 Ideas for your next hangout:',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            SizedBox(height: 8),
-            ...([
-              '🍕 Try that new restaurant everyone\'s talking about',
-              '🎬 Movie marathon night with homemade snacks',
-              '🏖️ Plan a weekend getaway together',
-              '🎳 Fun activity like bowling or escape room',
-              '☕ Coffee crawl around the city',
-              '🍳 Cook a meal together at home'
-            ].map((idea) => Padding(
-              padding: EdgeInsets.symmetric(vertical: 2),
-              child: Text(idea, style: TextStyle(fontSize: 14)),
-            ))),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Close'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Group chat integration coming soon! 💬'),
-                  backgroundColor: insight.color,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: insight.color),
-            child: Text('Message Friends', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
 
-  void _showCelebrationDialog(SpendingInsight insight) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.celebration, color: insight.color),
-            SizedBox(width: 8),
-            Text('Celebration Time!'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '🎊 Awesome Achievement!',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 12),
-            Text(insight.description),
-            SizedBox(height: 16),
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: insight.color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    '🏆 You\'re Building:',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  SizedBox(height: 8),
-                  Text('• Amazing friendships\n• Shared memories\n• Trust and generosity\n• A supportive community'),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Thanks!'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Social sharing coming soon! 📱'),
-                  backgroundColor: insight.color,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: insight.color),
-            child: Text('Share Achievement', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1602,13 +1420,13 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Friend Insights'),
+        title: const Text('Friend Insights'),
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             onPressed: () {
               setState(() {
                 _isLoading = true;
@@ -1624,8 +1442,8 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
             Text(
               'Analyzing your friendships and group dynamics...',
               style: TextStyle(
@@ -1638,15 +1456,15 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
           : RefreshIndicator(
         onRefresh: _loadInsightsData,
         child: SingleChildScrollView(
-          physics: AlwaysScrollableScrollPhysics(),
+          physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             children: [
               // Header with user streak
               if (_spendingStreak != null)
                 Container(
                   width: double.infinity,
-                  margin: EdgeInsets.all(16),
-                  padding: EdgeInsets.all(20),
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -1661,7 +1479,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         '👫 Your Social Journey',
                         style: TextStyle(
                           color: Colors.white,
@@ -1669,7 +1487,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
                         _spendingStreak!,
                         style: TextStyle(
@@ -1687,11 +1505,11 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
               // Smart Insights
               if (_insights.isNotEmpty) ...[
                 Padding(
-                  padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
                   child: Row(
                     children: [
                       Icon(Icons.auto_awesome, color: theme.primaryColor),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Text(
                         'Friend Insights',
                         style: TextStyle(
@@ -1716,7 +1534,7 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
               _buildTopFriends(),
 
               // Bottom padding
-              SizedBox(height: 100),
+              const SizedBox(height: 100),
             ],
           ),
         ),

@@ -3,19 +3,21 @@ import 'package:provider/provider.dart';
 import '../../services/notification_service.dart';
 
 class NotificationSettingsScreen extends StatelessWidget {
+  const NotificationSettingsScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Notification Settings'),
+        title: const Text('Notification Settings'),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Consumer<NotificationService>(
             builder: (context, notificationService, child) {
               return Column(
@@ -24,7 +26,7 @@ class NotificationSettingsScreen extends StatelessWidget {
                   // Header with info
                   Container(
                     width: double.infinity,
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Theme.of(context).primaryColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -39,7 +41,7 @@ class NotificationSettingsScreen extends StatelessWidget {
                           color: Theme.of(context).primaryColor,
                           size: 24,
                         ),
-                        SizedBox(width: 12),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -52,7 +54,7 @@ class NotificationSettingsScreen extends StatelessWidget {
                                   color: Theme.of(context).primaryColor,
                                 ),
                               ),
-                              SizedBox(height: 4),
+                              const SizedBox(height: 4),
                               Text(
                                 'Choose which notifications you want to receive',
                                 style: TextStyle(
@@ -67,7 +69,7 @@ class NotificationSettingsScreen extends StatelessWidget {
                     ),
                   ),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // Expense Notifications Section
                   _buildSectionHeader('Expense Notifications', context),
@@ -99,7 +101,7 @@ class NotificationSettingsScreen extends StatelessWidget {
                     onChanged: notificationService.setExpenseDeletedEnabled,
                   ),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // Group & Member Notifications Section
                   _buildSectionHeader('Group & Member Notifications', context),
@@ -131,17 +133,17 @@ class NotificationSettingsScreen extends StatelessWidget {
                     onChanged: notificationService.setGroupCreatedEnabled,
                   ),
 
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
                   // Test Notification Section
-                  Container(
+                  SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () async {
                         await notificationService.sendTestNotification();
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Row(
+                            content: const Row(
                               children: [
                                 Icon(Icons.check_circle, color: Colors.white),
                                 SizedBox(width: 8),
@@ -149,7 +151,7 @@ class NotificationSettingsScreen extends StatelessWidget {
                               ],
                             ),
                             backgroundColor: Colors.green,
-                            duration: Duration(seconds: 3),
+                            duration: const Duration(seconds: 3),
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
@@ -157,8 +159,8 @@ class NotificationSettingsScreen extends StatelessWidget {
                           ),
                         );
                       },
-                      icon: Icon(Icons.send, color: Colors.white),
-                      label: Text(
+                      icon: const Icon(Icons.send, color: Colors.white),
+                      label: const Text(
                         'Send Test Notification',
                         style: TextStyle(
                           color: Colors.white,
@@ -168,7 +170,7 @@ class NotificationSettingsScreen extends StatelessWidget {
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).primaryColor,
-                        padding: EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -177,12 +179,12 @@ class NotificationSettingsScreen extends StatelessWidget {
                     ),
                   ),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // Info footer
                   Container(
                     width: double.infinity,
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(12),
@@ -194,7 +196,7 @@ class NotificationSettingsScreen extends StatelessWidget {
                           color: Colors.grey.shade600,
                           size: 20,
                         ),
-                        SizedBox(width: 12),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             'You can change these settings anytime. Notifications help you stay updated with group activities.',
@@ -209,7 +211,7 @@ class NotificationSettingsScreen extends StatelessWidget {
                     ),
                   ),
 
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
                 ],
               );
             },
@@ -221,7 +223,7 @@ class NotificationSettingsScreen extends StatelessWidget {
 
   Widget _buildSectionHeader(String title, BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(left: 4, bottom: 12, top: 8),
+      padding: const EdgeInsets.only(left: 4, bottom: 12, top: 8),
       child: Text(
         title,
         style: TextStyle(
@@ -243,13 +245,13 @@ class NotificationSettingsScreen extends StatelessWidget {
     required Function(bool) onChanged,
   }) {
     return Card(
-      margin: EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
       color: Theme.of(context).cardColor,
       child: ListTile(
-        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Container(
-          padding: EdgeInsets.all(8),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: iconColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
@@ -262,7 +264,7 @@ class NotificationSettingsScreen extends StatelessWidget {
         ),
         title: Text(
           title,
-          style: TextStyle(
+          style: const TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 16,
           ),
