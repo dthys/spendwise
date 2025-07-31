@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
@@ -11,7 +13,10 @@ import '../expenses/expense_detail_screen.dart';
 import '../expenses/activity_log_screen.dart';
 import '../balances/balances_screen.dart';
 import 'group_settings_screen.dart';
+import 'group_insights_screen.dart';
 import '../../widgets/shimmer_box.dart';
+import 'package:rxdart/rxdart.dart';
+
 
 class GroupDetailScreen extends StatefulWidget {
   final String groupId;
@@ -34,6 +39,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
   Map<String, double>? _cachedBalances;
   DateTime? _lastBalanceUpdate;
 
+  // Add stream subscriptions for proper disposal
+  StreamSubscription? _balanceSubscription;
+  StreamSubscription? _expenseSubscription;
+  StreamSubscription? _settlementSubscription;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -43,7 +53,34 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
     _loadGroupData();
   }
 
+  @override
+  void dispose() {
+    // Cancel all stream subscriptions to prevent memory leaks
+    _balanceSubscription?.cancel();
+    _expenseSubscription?.cancel();
+    _settlementSubscription?.cancel();
+    super.dispose();
+  }
+
+  // Create a more stable stream for balance updates
+  Stream<Map<String, double>> _getBalanceStream() {
+    return _databaseService.streamGroupExpenses(widget.groupId)
+        .distinct() // Prevent duplicate events
+        .asyncMap((_) async {
+      try {
+        _cachedBalances = await _databaseService.calculateGroupBalancesWithSettlements(widget.groupId);
+        return _cachedBalances!;
+      } catch (e) {
+        print('Error calculating balances: $e');
+        return _cachedBalances ?? <String, double>{};
+      }
+    });
+  }
+
+  // Add error handling to data loading
   Future<void> _loadGroupData({bool forceRefresh = false}) async {
+    if (!mounted) return; // Check if widget is still mounted
+
     // Use cache if recent and not forcing refresh
     if (!forceRefresh &&
         _group != null &&
@@ -54,10 +91,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
 
     try {
       _group = await _databaseService.getGroup(widget.groupId);
-      if (_group != null) {
+      if (_group != null && mounted) {
         // Load member details
         _members = [];
         for (String memberId in _group!.memberIds) {
+          if (!mounted) break; // Check mounted state in loop
+
           UserModel? member = await _databaseService.getUser(memberId);
           if (member != null) {
             _members.add(member);
@@ -65,24 +104,19 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
         }
         _lastDataUpdate = DateTime.now();
       }
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     } catch (e) {
       print('Error loading group: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   String _formatCurrency(double amount) {
     return '${_group?.currency ?? 'EUR'} ${amount.toStringAsFixed(2)}';
-  }
-
-  // Create a stream for balance updates that reacts to expense changes
-  Stream<Map<String, double>> _getBalanceStream() {
-    return _databaseService.streamGroupExpenses(widget.groupId).asyncMap((_) async {
-      // Cache balances for better performance
-      _cachedBalances = await _databaseService.calculateGroupBalancesWithSettlements(widget.groupId);
-      return _cachedBalances!;
-    });
   }
 
   // Check if an expense is fully settled
@@ -394,6 +428,39 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                                 ],
                               ),
                             ),
+                            // Group Insights Button (same style as home screen)
+                            StreamBuilder<List<ExpenseModel>>(
+                              stream: _databaseService.streamGroupExpenses(widget.groupId),
+                              builder: (context, expenseSnapshot) {
+                                List<ExpenseModel> expenses = expenseSnapshot.data ?? [];
+
+                                // Only show insights button if there are expenses
+                                if (expenses.isEmpty) {
+                                  return SizedBox.shrink();
+                                }
+
+                                return Container(
+                                  margin: EdgeInsets.only(left: 8),
+                                  child: IconButton(
+                                    onPressed: () {
+                                      _navigateWithTransition(GroupInsightsScreen(
+                                        group: _group!,
+                                        members: _members,
+                                      ));
+                                    },
+                                    icon: Icon(
+                                      Icons.auto_awesome,
+                                      color: colorScheme.onPrimary,
+                                    ),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: colorScheme.onPrimary.withOpacity(0.2),
+                                      padding: EdgeInsets.all(8),
+                                    ),
+                                    tooltip: 'Group Insights',
+                                  ),
+                                );
+                              },
+                            ),
                           ],
                         ),
                       );
@@ -526,267 +593,41 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
 
             // Expenses List
             Expanded(
-              child: StreamBuilder<List<ExpenseModel>>(
-                stream: _databaseService.streamGroupExpenses(widget.groupId),
-                builder: (context, expenseSnapshot) {
-                  return StreamBuilder<List<SettlementModel>>(
-                    stream: _databaseService.streamGroupSettlements(widget.groupId),
-                    builder: (context, settlementSnapshot) {
-                      if (expenseSnapshot.connectionState == ConnectionState.waiting &&
-                          expenseSnapshot.data == null) {
-                        return _buildExpenseListSkeleton();
-                      }
+              child: StreamBuilder<List<dynamic>>(
+                // Combine both streams to prevent rebuild conflicts
+                stream: Rx.combineLatest2(
+                  _databaseService.streamGroupExpenses(widget.groupId),
+                  _databaseService.streamGroupSettlements(widget.groupId),
+                      (List<ExpenseModel> expenses, List<SettlementModel> settlements) => [expenses, settlements],
+                ).distinct(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                    return _buildExpenseListSkeleton();
+                  }
 
-                      if (!expenseSnapshot.hasData || expenseSnapshot.data!.isEmpty) {
-                        return SingleChildScrollView(
-                          physics: AlwaysScrollableScrollPhysics(),
-                          child: Container(
-                            height: MediaQuery.of(context).size.height * 0.4,
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.receipt_long,
-                                    size: 64,
-                                    color: colorScheme.onSurface.withOpacity(0.4),
-                                  ),
-                                  SizedBox(height: 16),
-                                  Text(
-                                    'No expenses yet',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      color: colorScheme.onSurface,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Add your first expense to start splitting!',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: colorScheme.onSurface.withOpacity(0.7),
-                                    ),
-                                  ),
-                                  SizedBox(height: 24),
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      _navigateWithTransition(AddExpenseScreen(
-                                        group: _group!,
-                                        members: _members,
-                                      ));
-                                    },
-                                    icon: Icon(Icons.add),
-                                    label: Text('Add Expense'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: theme.primaryColor,
-                                      foregroundColor: colorScheme.onPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }
+                  if (!snapshot.hasData) {
+                    return _buildEmptyExpensesState();
+                  }
 
-                      List<ExpenseModel> allExpenses = expenseSnapshot.data!;
-                      List<SettlementModel> settlements = settlementSnapshot.data ?? [];
+                  List<ExpenseModel> expenses = snapshot.data![0] as List<ExpenseModel>;
+                  List<SettlementModel> settlements = snapshot.data![1] as List<SettlementModel>;
 
-                      List<ExpenseModel> filteredExpenses = _filterExpenses(allExpenses, settlements);
+                  if (expenses.isEmpty) {
+                    return _buildEmptyExpensesState();
+                  }
 
-                      if (filteredExpenses.isEmpty && !_showSettledExpenses) {
-                        return SingleChildScrollView(
-                          physics: AlwaysScrollableScrollPhysics(),
-                          child: Container(
-                            height: MediaQuery.of(context).size.height * 0.4,
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.check_circle,
-                                    size: 64,
-                                    color: Colors.green.shade500,
-                                  ),
-                                  SizedBox(height: 16),
-                                  Text(
-                                    'All expenses settled!',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      color: Colors.green.shade600,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'All current expenses have been settled.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: colorScheme.onSurface.withOpacity(0.7),
-                                    ),
-                                  ),
-                                  SizedBox(height: 16),
-                                  TextButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _showSettledExpenses = true;
-                                      });
-                                    },
-                                    child: Text('Show settled expenses'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }
+                  List<ExpenseModel> filteredExpenses = _filterExpenses(expenses, settlements);
 
-                      return ListView.builder(
-                        physics: AlwaysScrollableScrollPhysics(),
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: filteredExpenses.length,
-                        itemBuilder: (context, index) {
-                          ExpenseModel expense = filteredExpenses[index];
-                          UserModel? paidByUser = _members.firstWhere(
-                                (member) => member.id == expense.paidBy,
-                            orElse: () => UserModel(
-                              id: '',
-                              name: 'Unknown',
-                              email: '',
-                              groupIds: [],
-                              createdAt: DateTime.now(),
-                            ),
-                          );
+                  if (filteredExpenses.isEmpty && !_showSettledExpenses) {
+                    return _buildAllSettledState();
+                  }
 
-                          bool isSettled = _isExpenseFullySettled(expense, settlements);
-
-                          return AnimatedContainer(
-                            duration: Duration(milliseconds: 200),
-                            curve: Curves.easeInOut,
-                            child: Hero(
-                              tag: 'expense_${expense.id}',
-                              child: Card(
-                                margin: EdgeInsets.only(bottom: 8),
-                                color: theme.cardColor,
-                                child: ListTile(
-                                  leading: Stack(
-                                    children: [
-                                      CircleAvatar(
-                                        backgroundColor: isSettled
-                                            ? Colors.grey.shade400
-                                            : theme.primaryColor,
-                                        child: Text(
-                                          expense.category.emoji,
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            color: isSettled
-                                                ? Colors.white.withOpacity(0.7)
-                                                : Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                      if (isSettled)
-                                        Positioned(
-                                          right: -2,
-                                          bottom: -2,
-                                          child: Container(
-                                            padding: EdgeInsets.all(2),
-                                            decoration: BoxDecoration(
-                                              color: Colors.green.shade500,
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Icon(
-                                              Icons.check,
-                                              color: Colors.white,
-                                              size: 12,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  title: Text(
-                                    expense.description,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: isSettled
-                                          ? colorScheme.onSurface.withOpacity(0.6)
-                                          : colorScheme.onSurface,
-                                      decoration: isSettled
-                                          ? TextDecoration.lineThrough
-                                          : TextDecoration.none,
-                                    ),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Text(
-                                            'Paid by ${paidByUser.name}',
-                                            style: TextStyle(
-                                              color: isSettled
-                                                  ? colorScheme.onSurface.withOpacity(0.4)
-                                                  : colorScheme.onSurface.withOpacity(0.8),
-                                            ),
-                                          ),
-                                          if (isSettled) ...[
-                                            SizedBox(width: 8),
-                                            Container(
-                                              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: Colors.green.shade100,
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: Text(
-                                                'SETTLED',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.green.shade700,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                      Text(
-                                        '${expense.date.day}/${expense.date.month}/${expense.date.year}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: isSettled
-                                              ? colorScheme.onSurface.withOpacity(0.4)
-                                              : colorScheme.onSurface.withOpacity(0.6),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  trailing: Text(
-                                    _formatCurrency(expense.amount),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: isSettled
-                                          ? colorScheme.onSurface.withOpacity(0.5)
-                                          : colorScheme.onSurface,
-                                      decoration: isSettled
-                                          ? TextDecoration.lineThrough
-                                          : TextDecoration.none,
-                                    ),
-                                  ),
-                                  onTap: () {
-                                    _navigateWithTransition(ExpenseDetailScreen(
-                                      expense: expense,
-                                      group: _group!,
-                                      members: _members,
-                                    ));
-                                  },
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      );
+                  return ListView.builder(
+                    physics: AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: filteredExpenses.length,
+                    itemBuilder: (context, index) {
+                      return _buildExpenseItem(filteredExpenses[index], settlements);
                     },
                   );
                 },
@@ -806,6 +647,258 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
         child: Icon(
           Icons.add,
           color: colorScheme.onPrimary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyExpensesState() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return SingleChildScrollView(
+      physics: AlwaysScrollableScrollPhysics(),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.4,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.receipt_long,
+                size: 64,
+                color: colorScheme.onSurface.withOpacity(0.4),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'No expenses yet',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Add your first expense to start splitting!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+              SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () {
+                  _navigateWithTransition(AddExpenseScreen(
+                    group: _group!,
+                    members: _members,
+                  ));
+                },
+                icon: Icon(Icons.add),
+                label: Text('Add Expense'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.primaryColor,
+                  foregroundColor: colorScheme.onPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAllSettledState() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return SingleChildScrollView(
+      physics: AlwaysScrollableScrollPhysics(),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.4,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.check_circle,
+                size: 64,
+                color: Colors.green.shade500,
+              ),
+              SizedBox(height: 16),
+              Text(
+                'All expenses settled!',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.green.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'All current expenses have been settled.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+              SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _showSettledExpenses = true;
+                  });
+                },
+                child: Text('Show settled expenses'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpenseItem(ExpenseModel expense, List<SettlementModel> settlements) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    UserModel? paidByUser = _members.firstWhere(
+          (member) => member.id == expense.paidBy,
+      orElse: () => UserModel(
+        id: '',
+        name: 'Unknown',
+        email: '',
+        groupIds: [],
+        createdAt: DateTime.now(),
+      ),
+    );
+
+    bool isSettled = _isExpenseFullySettled(expense, settlements);
+
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+      child: Hero(
+        tag: 'expense_${expense.id}',
+        child: Card(
+          margin: EdgeInsets.only(bottom: 8),
+          color: theme.cardColor,
+          child: ListTile(
+            leading: Stack(
+              children: [
+                CircleAvatar(
+                  backgroundColor: isSettled
+                      ? Colors.grey.shade400
+                      : theme.primaryColor,
+                  child: Text(
+                    expense.category.emoji,
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: isSettled
+                          ? Colors.white.withOpacity(0.7)
+                          : Colors.white,
+                    ),
+                  ),
+                ),
+                if (isSettled)
+                  Positioned(
+                    right: -2,
+                    bottom: -2,
+                    child: Container(
+                      padding: EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade500,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 12,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            title: Text(
+              expense.description,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: isSettled
+                    ? colorScheme.onSurface.withOpacity(0.6)
+                    : colorScheme.onSurface,
+                decoration: isSettled
+                    ? TextDecoration.lineThrough
+                    : TextDecoration.none,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Paid by ${paidByUser.name}',
+                        style: TextStyle(
+                          color: isSettled
+                              ? colorScheme.onSurface.withOpacity(0.4)
+                              : colorScheme.onSurface.withOpacity(0.8),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (isSettled) ...[
+                      SizedBox(width: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'SETTLED',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                Text(
+                  '${expense.date.day}/${expense.date.month}/${expense.date.year}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isSettled
+                        ? colorScheme.onSurface.withOpacity(0.4)
+                        : colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+            trailing: Text(
+              _formatCurrency(expense.amount),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: isSettled
+                    ? colorScheme.onSurface.withOpacity(0.5)
+                    : colorScheme.onSurface,
+                decoration: isSettled
+                    ? TextDecoration.lineThrough
+                    : TextDecoration.none,
+              ),
+            ),
+            onTap: () {
+              _navigateWithTransition(ExpenseDetailScreen(
+                expense: expense,
+                group: _group!,
+                members: _members,
+              ));
+            },
+          ),
         ),
       ),
     );
