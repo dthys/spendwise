@@ -19,13 +19,8 @@ import '../../widgets/shimmer_box.dart';
 import 'package:rxdart/rxdart.dart';
 
 enum ExpenseFilter {
-  unsettledOnly('Unsettled Only', Icons.visibility),
-  all('All Expenses', Icons.visibility_off),
-  settledOnly('Settled Only', Icons.check_circle);
-
-  const ExpenseFilter(this.label, this.icon);
-  final String label;
-  final IconData icon;
+  unsettled,
+  all;
 }
 
 
@@ -48,7 +43,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
   DateTime? _lastDataUpdate;
   Map<String, double>? _cachedBalances;
 
-  ExpenseFilter _currentFilter = ExpenseFilter.unsettledOnly;
+  ExpenseFilter _currentFilter = ExpenseFilter.unsettled;
 
   // Add stream subscriptions for proper disposal
   StreamSubscription? _balanceSubscription;
@@ -68,62 +63,33 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
     final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.uid;
 
     return _databaseService.streamGroupExpenses(widget.groupId).asyncMap((expenses) async {
-      if (currentUserId == null) return expenses;
-
-      switch (_currentFilter) {
-        case ExpenseFilter.all:
-          return expenses; // Show all expenses
-
-        case ExpenseFilter.unsettledOnly:
-        // Use the filtering logic we created
-          DateTime? lastCheckpoint = await _databaseService.getUserLastSettlementCheckpoint(currentUserId, widget.groupId);
-
-          return expenses.where((expense) {
-            // Rule 1: Hide expenses older than user's last full settlement
-            if (lastCheckpoint != null && expense.date.isBefore(lastCheckpoint)) {
-              return false;
-            }
-
-            // Rule 2: Hide expenses that are completely settled for everyone
-            if (expense.isFullySettled()) {
-              return false;
-            }
-
-            // Rule 3: For expenses involving this user, hide if settled for them
-            if (expense.splitBetween.contains(currentUserId) &&
-                expense.paidBy != currentUserId &&
-                expense.isSettledForUser(currentUserId)) {
-              return false;
-            }
-
-            return true;
-          }).toList();
-
-        case ExpenseFilter.settledOnly:
-        // Show only settled expenses
-          DateTime? lastCheckpoint = await _databaseService.getUserLastSettlementCheckpoint(currentUserId, widget.groupId);
-
-          return expenses.where((expense) {
-            // Show expenses older than checkpoint
-            if (lastCheckpoint != null && expense.date.isBefore(lastCheckpoint)) {
-              return true;
-            }
-
-            // Show expenses that are completely settled
-            if (expense.isFullySettled()) {
-              return true;
-            }
-
-            // Show expenses where this user has settled their part
-            if (expense.splitBetween.contains(currentUserId) &&
-                expense.paidBy != currentUserId &&
-                expense.isSettledForUser(currentUserId)) {
-              return true;
-            }
-
-            return false;
-          }).toList();
+      if (currentUserId == null || _currentFilter == ExpenseFilter.all) {
+        return expenses; // Show all expenses
       }
+
+      // Show only unsettled expenses
+      DateTime? lastCheckpoint = await _databaseService.getUserLastSettlementCheckpoint(currentUserId, widget.groupId);
+
+      return expenses.where((expense) {
+        // Rule 1: Hide expenses older than user's last full settlement
+        if (lastCheckpoint != null && expense.date.isBefore(lastCheckpoint)) {
+          return false;
+        }
+
+        // Rule 2: Hide expenses that are completely settled for everyone
+        if (expense.isFullySettled()) {
+          return false;
+        }
+
+        // Rule 3: For expenses involving this user, hide if settled for them
+        if (expense.splitBetween.contains(currentUserId) &&
+            expense.paidBy != currentUserId &&
+            expense.isSettledForUser(currentUserId)) {
+          return false;
+        }
+
+        return true;
+      }).toList();
     });
   }
 
@@ -565,8 +531,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                     ],
                   ),
 
-                  // NEW: Filter Dropdown Row
-                  const SizedBox(height: 8),
+// Filter Toggle
                   Row(
                     children: [
                       Icon(
@@ -576,62 +541,21 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Show:',
+                        'Show settled expenses',
                         style: TextStyle(
-                          color: colorScheme.onSurface.withOpacity(0.7),
+                          color: colorScheme.onSurface.withOpacity(0.8),
                           fontSize: 14,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Container(
-                          height: 40,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: colorScheme.outline.withOpacity(0.3)),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<ExpenseFilter>(
-                              value: _currentFilter,
-                              isExpanded: true,
-                              icon: Icon(
-                                Icons.keyboard_arrow_down,
-                                color: colorScheme.onSurface.withOpacity(0.6),
-                              ),
-                              items: ExpenseFilter.values.map((filter) {
-                                return DropdownMenuItem<ExpenseFilter>(
-                                  value: filter,
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        filter.icon,
-                                        size: 18,
-                                        color: colorScheme.onSurface.withOpacity(0.7),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        filter.label,
-                                        style: TextStyle(
-                                          color: colorScheme.onSurface,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                              onChanged: (ExpenseFilter? newFilter) {
-                                if (newFilter != null) {
-                                  setState(() {
-                                    _currentFilter = newFilter;
-                                  });
-                                }
-                              },
-                            ),
-                          ),
-                        ),
+                      const Spacer(),
+                      Switch(
+                        value: _currentFilter == ExpenseFilter.all,
+                        onChanged: (bool value) {
+                          setState(() {
+                            _currentFilter = value ? ExpenseFilter.all : ExpenseFilter.unsettled;
+                          });
+                        },
+                        activeColor: theme.primaryColor,
                       ),
                     ],
                   ),
@@ -639,7 +563,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
               ),
             ),
 
-// UPDATED: Expenses List with new stream
+            // UPDATED: Expenses List with new stream
             Expanded(
               child: StreamBuilder<List<ExpenseModel>>(
                 stream: _getFilteredExpenseStream(),
@@ -656,38 +580,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
 
                   return Column(
                     children: [
-                      // Filter status indicator
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: _getFilterStatusColor().withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: _getFilterStatusColor().withOpacity(0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _currentFilter.icon,
-                              size: 16,
-                              color: _getFilterStatusColor(),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _getFilterStatusText(expenses.length),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: _getFilterStatusColor(),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
 
                       // Expenses list
                       Expanded(
@@ -724,31 +616,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
     );
   }
 
-  Color _getFilterStatusColor() {
-    switch (_currentFilter) {
-      case ExpenseFilter.unsettledOnly:
-        return Colors.orange;
-      case ExpenseFilter.all:
-        return Colors.blue;
-      case ExpenseFilter.settledOnly:
-        return Colors.green;
-    }
-  }
-
-  String _getFilterStatusText(int count) {
-    switch (_currentFilter) {
-      case ExpenseFilter.unsettledOnly:
-        return 'Showing $count unsettled expenses';
-      case ExpenseFilter.all:
-        return 'Showing all $count expenses';
-      case ExpenseFilter.settledOnly:
-        return 'Showing $count settled expenses';
-    }
-  }
-
   Widget _buildExpenseItem(ExpenseModel expense) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.uid;
 
     UserModel? paidByUser = _members.firstWhere(
           (member) => member.id == expense.paidBy,
@@ -761,6 +632,21 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
       ),
     );
 
+    // Check if expense is settled for current user or fully settled
+    bool isSettledForUser = false;
+    if (currentUserId != null) {
+      // Check if expense is fully settled for everyone
+      if (expense.isFullySettled()) {
+        isSettledForUser = true;
+      }
+      // Check if it's settled specifically for this user
+      else if (expense.splitBetween.contains(currentUserId) &&
+          expense.paidBy != currentUserId &&
+          expense.isSettledForUser(currentUserId)) {
+        isSettledForUser = true;
+      }
+    }
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
@@ -771,7 +657,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
           color: theme.cardColor,
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: theme.primaryColor,
+              backgroundColor: isSettledForUser
+                  ? colorScheme.onSurface.withOpacity(0.3)
+                  : theme.primaryColor,
               child: Text(
                 expense.category.emoji,
                 style: const TextStyle(
@@ -784,7 +672,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
               expense.description,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: colorScheme.onSurface,
+                color: isSettledForUser
+                    ? colorScheme.onSurface.withOpacity(0.6)
+                    : colorScheme.onSurface,
+                decoration: isSettledForUser
+                    ? TextDecoration.lineThrough
+                    : TextDecoration.none,
               ),
             ),
             subtitle: Column(
@@ -793,7 +686,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                 Text(
                   'Paid by ${paidByUser.name}',
                   style: TextStyle(
-                    color: colorScheme.onSurface.withOpacity(0.8),
+                    color: isSettledForUser
+                        ? colorScheme.onSurface.withOpacity(0.5)
+                        : colorScheme.onSurface.withOpacity(0.8),
+                    decoration: isSettledForUser
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -801,7 +699,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                   '${expense.date.day}/${expense.date.month}/${expense.date.year}',
                   style: TextStyle(
                     fontSize: 12,
-                    color: colorScheme.onSurface.withOpacity(0.6),
+                    color: isSettledForUser
+                        ? colorScheme.onSurface.withOpacity(0.4)
+                        : colorScheme.onSurface.withOpacity(0.6),
+                    decoration: isSettledForUser
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
                   ),
                 ),
               ],
@@ -811,7 +714,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
-                color: colorScheme.onSurface,
+                color: isSettledForUser
+                    ? colorScheme.onSurface.withOpacity(0.6)
+                    : colorScheme.onSurface,
+                decoration: isSettledForUser
+                    ? TextDecoration.lineThrough
+                    : TextDecoration.none,
               ),
             ),
             onTap: () {
