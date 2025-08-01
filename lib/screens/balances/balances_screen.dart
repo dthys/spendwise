@@ -347,23 +347,26 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                         ],
                                       ),
                                       onTap: () {
-                                        setState(() {
-                                          if (isExpanded) {
-                                            _expandedMembers.remove(member.id);
-                                          } else {
-                                            _expandedMembers.add(member.id);
-                                          }
-                                        });
+                                        // Only allow expansion if there are actual debts to show
+                                        if (hasAnyDebts) {
+                                          setState(() {
+                                            if (isExpanded) {
+                                              _expandedMembers.remove(member.id);
+                                            } else {
+                                              _expandedMembers.add(member.id);
+                                            }
+                                          });
+                                        }
+                                        // For settled members, do nothing - no setState call
                                       },
                                     ),
 
-// Expanded Section - Individual Debts
+                                    // Expanded Section - Individual Debts
                                     AnimatedCrossFade(
                                       firstChild: const SizedBox.shrink(),
                                       secondChild: Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Divider(color: colorScheme.onSurface.withOpacity(0.1)),
 
@@ -568,7 +571,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                           ],
                                         ),
                                       ),
-                                      crossFadeState: isExpanded && hasAnyDebts
+                                      crossFadeState: (isExpanded && hasAnyDebts)
                                           ? CrossFadeState.showSecond
                                           : CrossFadeState.showFirst,
                                       duration: const Duration(milliseconds: 300),
@@ -632,6 +635,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
       ),
     );
   }
+
 
   void _showSettleDialog(SimplifiedDebt debt, UserModel fromUser, UserModel toUser) {
     SettlementMethod selectedMethod = SettlementMethod.bankTransfer;
