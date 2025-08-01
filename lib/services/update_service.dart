@@ -26,6 +26,8 @@ class UpdateService extends ChangeNotifier {
   bool _updateAvailable = false;
   String? _lastError;
 
+  // NEW: Silent initialization flag to prevent UI flashes
+  bool _isSilentMode = true;
 
   // Getters
   bool get isCheckingForUpdate => _isCheckingForUpdate;
@@ -38,8 +40,10 @@ class UpdateService extends ChangeNotifier {
   bool get updateAvailable => _updateAvailable;
   String? get lastError => _lastError;
 
-  /// Initialize the service and get current app version
+  /// Initialize the service and get current app version - SILENT MODE
   Future<void> initialize() async {
+    _isSilentMode = true; // Start in silent mode
+
     try {
       // Validate token is configured
       if (_githubToken.isEmpty || _githubToken == 'YOUR_NEW_GITHUB_TOKEN_HERE') {
@@ -55,7 +59,10 @@ class UpdateService extends ChangeNotifier {
       if (kDebugMode) {
         print('🔧 Initialized UpdateService - Current version: $_currentVersion');
       }
-      notifyListeners();
+
+      // DON'T notify listeners during silent initialization
+      // notifyListeners(); // REMOVED
+
     } catch (e) {
       _lastError = 'Error getting package info: $e';
       if (kDebugMode) {
@@ -64,8 +71,24 @@ class UpdateService extends ChangeNotifier {
     }
   }
 
-  /// Check for updates only if not already checked this session
-  Future<bool> checkForUpdatesOnce({bool silent = false}) async {
+  /// Enable UI updates after app is fully loaded
+  void enableUIUpdates() {
+    _isSilentMode = false;
+    if (kDebugMode) {
+      print('🔊 UpdateService UI updates enabled');
+    }
+  }
+
+  /// Override notifyListeners to respect silent mode
+  @override
+  void notifyListeners() {
+    if (!_isSilentMode) {
+      super.notifyListeners();
+    }
+  }
+
+  /// Check for updates only if not already checked this session - SILENT BY DEFAULT
+  Future<bool> checkForUpdatesOnce({bool silent = true}) async {
     if (_hasCheckedThisSession) {
       if (kDebugMode) {
         print('🔄 Update already checked this session, skipping...');
@@ -86,25 +109,29 @@ class UpdateService extends ChangeNotifier {
     _hasCheckedThisSession = false;
   }
 
-  /// Check for updates from GitHub releases - WITH AUTHENTICATION
-  Future<bool> checkForUpdates({bool silent = false}) async {
+  /// Check for updates from GitHub releases - ENHANCED SILENT MODE
+  Future<bool> checkForUpdates({bool silent = true}) async {
     if (_isCheckingForUpdate) return false;
 
     _isCheckingForUpdate = true;
     _updateAvailable = false;
     _lastError = null;
-    if (!silent) notifyListeners();
+
+    // Only notify listeners if not in silent mode
+    if (!silent && !_isSilentMode) {
+      notifyListeners();
+    }
 
     try {
       if (kDebugMode) {
-        print('🔍 Checking for updates with authentication...');
+        print('🔍 Checking for updates with authentication... (silent: $silent)');
       }
 
       // Enhanced headers with authentication
       final headers = {
         'Accept': 'application/vnd.github.v3+json',
         'User-Agent': 'Spendwise-App/1.0',
-        'Authorization': 'Bearer $_githubToken', // This increases your rate limit to 5,000/hour
+        'Authorization': 'Bearer $_githubToken',
         'X-GitHub-Api-Version': '2022-11-28',
       };
 
@@ -143,7 +170,7 @@ class UpdateService extends ChangeNotifier {
           print('📝 Release notes length: ${_releaseNotes?.length ?? 0} characters');
         }
 
-        // Find APK download URL with better debugging
+        // Find APK download URL
         final assets = data['assets'] as List?;
         if (kDebugMode) {
           print('📎 Found ${assets?.length ?? 0} assets');
@@ -221,7 +248,6 @@ class UpdateService extends ChangeNotifier {
           }
         }
 
-        // Don't throw exception for rate limits, just return false
         return false;
 
       } else if (response.statusCode == 401) {
@@ -250,7 +276,11 @@ class UpdateService extends ChangeNotifier {
       _updateAvailable = false;
     } finally {
       _isCheckingForUpdate = false;
-      notifyListeners();
+
+      // Only notify listeners if not in silent mode
+      if (!silent && !_isSilentMode) {
+        notifyListeners();
+      }
     }
 
     return _updateAvailable;
@@ -448,7 +478,6 @@ class UpdateService extends ChangeNotifier {
   }
 
   /// Enhanced download with better error handling and debugging
-  /// Fixed download for PRIVATE GitHub repositories
   Future<String?> downloadUpdateWithProgress() async {
     if (_downloadUrl == null || _isDownloading) {
       _lastError = _downloadUrl == null ? 'No download URL available' : 'Already downloading';
@@ -470,6 +499,8 @@ class UpdateService extends ChangeNotifier {
     _isDownloading = true;
     _downloadProgress = 0.0;
     _lastError = null;
+
+    // Always notify during actual download
     notifyListeners();
 
     try {
@@ -492,8 +523,8 @@ class UpdateService extends ChangeNotifier {
 
       final request = http.Request('GET', Uri.parse(apiUrl));
       request.headers.addAll({
-        'Accept': 'application/octet-stream', // CRUCIAL for binary download
-        'Authorization': 'Bearer $_githubToken', // REQUIRED for private repos
+        'Accept': 'application/octet-stream',
+        'Authorization': 'Bearer $_githubToken',
         'User-Agent': 'Spendwise-App/1.0',
         'X-GitHub-Api-Version': '2022-11-28',
       });
@@ -558,7 +589,7 @@ class UpdateService extends ChangeNotifier {
               _downloadProgress = 0.5;
             }
 
-            if (downloadedBytes % (512 * 1024) < chunk.length) { // Log every 512KB
+            if (downloadedBytes % (512 * 1024) < chunk.length) {
               if (kDebugMode) {
                 print('📊 Downloaded: ${(downloadedBytes / 1024 / 1024).toStringAsFixed(1)} MB');
               }
@@ -580,7 +611,7 @@ class UpdateService extends ChangeNotifier {
               print('✅ APK downloaded successfully - Size: $fileSize bytes');
             }
 
-            if (fileSize > 1024) { // APK should be at least 1KB
+            if (fileSize > 1024) {
               return filePath;
             } else {
               throw Exception('Downloaded file is too small: $fileSize bytes');
@@ -673,10 +704,11 @@ class UpdateService extends ChangeNotifier {
       return null;
     }
   }
+
   /// Get the best available storage directory
   Future<Directory?> _getStorageDirectory() async {
     try {
-      // Try external storage first (usually /storage/emulated/0/Android/data/...)
+      // Try external storage first
       final externalDir = await getExternalStorageDirectory();
       if (externalDir != null) {
         final downloadsDir = Directory('${externalDir.path}/downloads');
@@ -962,17 +994,26 @@ class UpdateService extends ChangeNotifier {
 
     _lastError = null;
 
-    final apkPath = await downloadUpdateWithProgress();
-    if (apkPath != null) {
-      if (kDebugMode) {
-        print('📦 Download completed, starting installation...');
+    // Enable UI updates during actual download/install process
+    final wasSilent = _isSilentMode;
+    _isSilentMode = false;
+
+    try {
+      final apkPath = await downloadUpdateWithProgress();
+      if (apkPath != null) {
+        if (kDebugMode) {
+          print('📦 Download completed, starting installation...');
+        }
+        return await installUpdate(apkPath);
+      } else {
+        if (kDebugMode) {
+          print('❌ Download failed, cannot proceed with installation');
+        }
+        return false;
       }
-      return await installUpdate(apkPath);
-    } else {
-      if (kDebugMode) {
-        print('❌ Download failed, cannot proceed with installation');
-      }
-      return false;
+    } finally {
+      // Restore previous silent state
+      _isSilentMode = wasSilent;
     }
   }
 
@@ -985,7 +1026,11 @@ class UpdateService extends ChangeNotifier {
     _downloadUrl = null;
     _releaseNotes = null;
     _lastError = null;
-    notifyListeners();
+
+    // Only notify if not in silent mode
+    if (!_isSilentMode) {
+      notifyListeners();
+    }
   }
 
   /// Get formatted version info
@@ -1012,6 +1057,7 @@ Debug Information:
 - Download Progress: ${(_downloadProgress * 100).toStringAsFixed(1)}%
 - Last Error: $_lastError
 - Platform: ${Platform.operatingSystem}
+- Silent Mode: $_isSilentMode
     ''';
   }
 }

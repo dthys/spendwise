@@ -29,13 +29,15 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   late String _currentUserId;
   String? _userName;
 
-
   // Cache to prevent unnecessary rebuilds
   double? _cachedBalance;
   DateTime? _lastBalanceUpdate;
 
   // Toggle between Groups and Friends view
   bool _showingFriends = false;
+
+  // Loading state to prevent flash
+  bool _isInitializing = true;
 
   @override
   bool get wantKeepAlive => true;
@@ -44,22 +46,48 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   void initState() {
     super.initState();
     _balanceController = StreamController<double>.broadcast();
+    _initializeHomeScreen();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final authService = Provider.of<AuthService>(context, listen: false);
-    if (authService.currentUser != null) {
-      _currentUserId = authService.currentUser!.uid;
-      _refreshBalance();
-      _loadUserName();
-
-      // Check for updates on first home screen load
-
+    // Only refresh if not already initializing
+    if (!_isInitializing) {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      if (authService.currentUser != null && _currentUserId != authService.currentUser!.uid) {
+        _currentUserId = authService.currentUser!.uid;
+        _refreshBalance();
+        _loadUserName();
+      }
     }
   }
 
+  // Consolidated initialization method
+  Future<void> _initializeHomeScreen() async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      if (authService.currentUser != null) {
+        _currentUserId = authService.currentUser!.uid;
+
+        // Load everything in parallel
+        await Future.wait([
+          _loadUserName(),
+          _refreshBalance(forceRefresh: true),
+        ]);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error initializing home screen: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -74,42 +102,46 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       if (authService.currentUser != null) {
         UserModel? user = await _databaseService.getUser(authService.currentUser!.uid);
 
+        String newUserName;
         if (user != null && user.name.isNotEmpty) {
-          setState(() {
-            _userName = user.name;
-          });
+          newUserName = user.name;
           if (kDebugMode) {
             print('✅ Username loaded from database: ${user.name}');
           }
         } else if (authService.currentUser!.displayName != null && authService.currentUser!.displayName!.isNotEmpty) {
-          setState(() {
-            _userName = authService.currentUser!.displayName;
-          });
+          newUserName = authService.currentUser!.displayName!;
           if (kDebugMode) {
             print('✅ Username loaded from Firebase Auth: ${authService.currentUser!.displayName}');
           }
         } else {
           String emailPrefix = authService.currentUser!.email?.split('@')[0] ?? 'User';
-          setState(() {
-            _userName = emailPrefix;
-          });
+          newUserName = emailPrefix;
           if (kDebugMode) {
             print('✅ Username set to email prefix: $emailPrefix');
           }
+        }
+
+        // Only update state if the name actually changed
+        if (_userName != newUserName && mounted) {
+          setState(() {
+            _userName = newUserName;
+          });
         }
       }
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error loading username: $e');
       }
-      setState(() {
-        _userName = 'User';
-      });
+      if (mounted && _userName == null) {
+        setState(() {
+          _userName = 'User';
+        });
+      }
     }
   }
 
   Future<void> _refreshBalance({bool forceRefresh = false}) async {
-    // Use cache if recent and not forcing refresh (reduce cache time to 10 seconds)
+    // Use cache if recent and not forcing refresh
     if (!forceRefresh &&
         _cachedBalance != null &&
         _lastBalanceUpdate != null &&
@@ -124,8 +156,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
       if (kDebugMode) {
         print('🏠 === CALCULATING HOME SCREEN BALANCE ===');
-      }
-      if (kDebugMode) {
         print('🏠 User has ${groups.length} groups');
       }
 
@@ -172,13 +202,11 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     final user = authService.currentUser;
 
     if (user != null) {
-      // Option 1: Smooth transition to SearchScreen
       Navigator.push(
         context,
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) => SearchScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            // Slide up transition
             const begin = Offset(0.0, 1.0);
             const end = Offset.zero;
             const curve = Curves.easeInOutCubic;
@@ -188,7 +216,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             );
             var offsetAnimation = animation.drive(tween);
 
-            // Fade transition combined with slide
             var fadeAnimation = animation.drive(
               Tween(begin: 0.0, end: 1.0).chain(
                 CurveTween(curve: curve),
@@ -207,9 +234,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           reverseTransitionDuration: const Duration(milliseconds: 300),
         ),
       );
-
-      // Option 2: Custom SearchDelegate with smooth animation
-      // _showCustomSearch(user.uid);
     }
   }
 
@@ -265,7 +289,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     );
 
     // Always refresh balance when returning (but use cache if recent)
-    // Force refresh only if screen explicitly requests it
     bool forceRefresh = (result == 'refresh' || result == true);
     _refreshBalance(forceRefresh: forceRefresh);
 
@@ -273,7 +296,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       _loadUserName();
     }
   }
-
 
   void _showNotificationsDialog(BuildContext context, dynamic user) {
     showDialog(
@@ -465,9 +487,11 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           Expanded(
             child: GestureDetector(
               onTap: () {
-                setState(() {
-                  _showingFriends = false;
-                });
+                if (_showingFriends) {
+                  setState(() {
+                    _showingFriends = false;
+                  });
+                }
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -499,9 +523,11 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           Expanded(
             child: GestureDetector(
               onTap: () {
-                setState(() {
-                  _showingFriends = true;
-                });
+                if (!_showingFriends) {
+                  setState(() {
+                    _showingFriends = true;
+                  });
+                }
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -535,13 +561,15 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     );
   }
 
-  // Build Friends View
+  // Build Friends View with loading handling
   Widget _buildFriendsView(String userId) {
     return StreamBuilder<List<FriendBalance>>(
       stream: _databaseService.streamUserFriendsWithBalances(userId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
         }
 
         if (snapshot.hasError) {
@@ -691,7 +719,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     );
   }
 
-// Build Groups View
+  // Build Groups View with loading handling
   Widget _buildGroupsView(String userId) {
     return Column(
       children: [
@@ -726,7 +754,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             stream: _databaseService.streamUserGroups(userId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
               }
 
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -823,7 +853,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     );
   }
 
-// Helper method for bigger Smart Insights button (stays on the right)
+  // Helper method for bigger Smart Insights button
   Widget _buildBiggerRightSideButton() {
     return TextButton(
       onPressed: () {
@@ -865,6 +895,22 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     final authService = Provider.of<AuthService>(context);
     final user = authService.currentUser;
 
+    // Show loading screen while initializing
+    if (_isInitializing || user == null) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: const Text('Spendwise'),
+          backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+          foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
+          elevation: 0,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -881,7 +927,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           ),
 
           // Notifications
-          user != null ? StreamBuilder<int>(
+          StreamBuilder<int>(
             stream: _databaseService.streamTotalUnreadActivities(user.uid),
             builder: (context, unreadSnapshot) {
               int totalUnread = unreadSnapshot.data ?? 0;
@@ -922,7 +968,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 },
               );
             },
-          ) : const SizedBox.shrink(),
+          ),
 
           // Theme toggle
           Consumer<ThemeService>(
@@ -945,11 +991,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           ),
         ],
       ),
-      body: user == null
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
+      body: Column(
         children: [
-          // Balance Header - BUTTON STAYS ON THE RIGHT BUT BIGGER
+          // Balance Header
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
@@ -998,9 +1042,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         children: [
                           const Icon(Icons.account_balance_wallet, color: Colors.white),
                           const SizedBox(width: 12),
-                          // Balance info - takes less space to give button more room
+                          // Balance info
                           Expanded(
-                            flex: 1, // Reduced from 3 to 2
+                            flex: 1,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -1041,9 +1085,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                             ),
                           ),
                           const SizedBox(width: 12),
-                          // Smart Insights button - more space allocated
+                          // Smart Insights button
                           Expanded(
-                            flex: 1, // More generous space allocation
+                            flex: 1,
                             child: _buildBiggerRightSideButton(),
                           ),
                         ],
