@@ -18,6 +18,16 @@ import 'group_insights_screen.dart';
 import '../../widgets/shimmer_box.dart';
 import 'package:rxdart/rxdart.dart';
 
+enum ExpenseFilter {
+  unsettledOnly('Unsettled Only', Icons.visibility),
+  all('All Expenses', Icons.visibility_off),
+  settledOnly('Settled Only', Icons.check_circle);
+
+  const ExpenseFilter(this.label, this.icon);
+  final String label;
+  final IconData icon;
+}
+
 
 class GroupDetailScreen extends StatefulWidget {
   final String groupId;
@@ -33,11 +43,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
   GroupModel? _group;
   List<UserModel> _members = [];
   bool _isLoading = true;
-  bool _showSettledExpenses = false;
 
   // Cache for group data to prevent unnecessary reloads
   DateTime? _lastDataUpdate;
   Map<String, double>? _cachedBalances;
+
+  ExpenseFilter _currentFilter = ExpenseFilter.unsettledOnly;
 
   // Add stream subscriptions for proper disposal
   StreamSubscription? _balanceSubscription;
@@ -53,6 +64,69 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
     _loadGroupData();
   }
 
+  Stream<List<ExpenseModel>> _getFilteredExpenseStream() {
+    final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.uid;
+
+    return _databaseService.streamGroupExpenses(widget.groupId).asyncMap((expenses) async {
+      if (currentUserId == null) return expenses;
+
+      switch (_currentFilter) {
+        case ExpenseFilter.all:
+          return expenses; // Show all expenses
+
+        case ExpenseFilter.unsettledOnly:
+        // Use the filtering logic we created
+          DateTime? lastCheckpoint = await _databaseService.getUserLastSettlementCheckpoint(currentUserId, widget.groupId);
+
+          return expenses.where((expense) {
+            // Rule 1: Hide expenses older than user's last full settlement
+            if (lastCheckpoint != null && expense.date.isBefore(lastCheckpoint)) {
+              return false;
+            }
+
+            // Rule 2: Hide expenses that are completely settled for everyone
+            if (expense.isFullySettled()) {
+              return false;
+            }
+
+            // Rule 3: For expenses involving this user, hide if settled for them
+            if (expense.splitBetween.contains(currentUserId) &&
+                expense.paidBy != currentUserId &&
+                expense.isSettledForUser(currentUserId)) {
+              return false;
+            }
+
+            return true;
+          }).toList();
+
+        case ExpenseFilter.settledOnly:
+        // Show only settled expenses
+          DateTime? lastCheckpoint = await _databaseService.getUserLastSettlementCheckpoint(currentUserId, widget.groupId);
+
+          return expenses.where((expense) {
+            // Show expenses older than checkpoint
+            if (lastCheckpoint != null && expense.date.isBefore(lastCheckpoint)) {
+              return true;
+            }
+
+            // Show expenses that are completely settled
+            if (expense.isFullySettled()) {
+              return true;
+            }
+
+            // Show expenses where this user has settled their part
+            if (expense.splitBetween.contains(currentUserId) &&
+                expense.paidBy != currentUserId &&
+                expense.isSettledForUser(currentUserId)) {
+              return true;
+            }
+
+            return false;
+          }).toList();
+      }
+    });
+  }
+
   @override
   void dispose() {
     // Cancel all stream subscriptions to prevent memory leaks
@@ -62,21 +136,25 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
     super.dispose();
   }
 
-  // Create a more stable stream for balance updates
+  Map<String, double> _calculateSimplifiedBalances(
+      List<ExpenseModel> expenses,
+      List<SettlementModel> settlements,
+      String? viewingUserId,
+      ) {
+    return _databaseService.calculateUserSpecificBalances(expenses, settlements, viewingUserId);
+  }
+
+// AND UPDATE the _getBalanceStream method to pass currentUserId:
   Stream<Map<String, double>> _getBalanceStream() {
-    return _databaseService.streamGroupExpenses(widget.groupId)
-        .distinct() // Prevent duplicate events
-        .asyncMap((_) async {
-      try {
-        _cachedBalances = await _databaseService.calculateGroupBalancesWithSettlements(widget.groupId);
-        return _cachedBalances!;
-      } catch (e) {
-        if (kDebugMode) {
-          print('Error calculating balances: $e');
-        }
-        return _cachedBalances ?? <String, double>{};
-      }
-    });
+    final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.uid;
+
+    return Rx.combineLatest2(
+      _databaseService.streamGroupExpenses(widget.groupId),
+      _databaseService.streamGroupSettlements(widget.groupId),
+          (List<ExpenseModel> expenses, List<SettlementModel> settlements) {
+        return _calculateSimplifiedBalances(expenses, settlements, currentUserId);
+      },
+    ).distinct();
   }
 
   // Add error handling to data loading
@@ -121,49 +199,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
 
   String _formatCurrency(double amount) {
     return NumberFormatter.formatCurrency(amount, currencySymbol: _group?.currency ?? 'EUR');
-  }
-
-  // Check if an expense is fully settled
-  bool _isExpenseFullySettled(ExpenseModel expense, List<SettlementModel> settlements) {
-    List<SettlementModel> expenseSettlements = settlements
-        .where((s) => s.settledExpenseIds.contains(expense.id))
-        .toList();
-
-    if (expenseSettlements.isEmpty) {
-      return false;
-    }
-
-    Set<String> settledUserPairs = expenseSettlements
-        .map((s) => '${s.fromUserId}-${s.toUserId}')
-        .toSet();
-
-    List<String> reversePairs = expenseSettlements
-        .map((s) => '${s.toUserId}-${s.fromUserId}')
-        .toList();
-    settledUserPairs.addAll(reversePairs);
-
-    String payer = expense.paidBy;
-
-    for (String participant in expense.splitBetween) {
-      if (participant == payer) {
-        continue;
-      }
-
-      if (!settledUserPairs.contains('$participant-$payer')) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  // Filter expenses based on settled status
-  List<ExpenseModel> _filterExpenses(List<ExpenseModel> expenses, List<SettlementModel> settlements) {
-    if (_showSettledExpenses) {
-      return expenses;
-    } else {
-      return expenses.where((expense) => !_isExpenseFullySettled(expense, settlements)).toList();
-    }
   }
 
   // Add refresh functionality with smart caching
@@ -432,13 +467,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                                 ],
                               ),
                             ),
-                            // Group Insights Button (same style as home screen)
+                            // Group Insights Button (keep this as is)
                             StreamBuilder<List<ExpenseModel>>(
                               stream: _databaseService.streamGroupExpenses(widget.groupId),
                               builder: (context, expenseSnapshot) {
                                 List<ExpenseModel> expenses = expenseSnapshot.data ?? [];
 
-                                // Only show insights button if there are expenses
                                 if (expenses.isEmpty) {
                                   return const SizedBox.shrink();
                                 }
@@ -470,7 +504,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                       );
                     },
                   ),
-
                   const SizedBox(height: 16),
 
                   // Quick access to balances
@@ -501,138 +534,173 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
               ),
             ),
 
-            // Members Count and Add Expense
+
+            // Members Count, Add Expense + Filter Dropdown
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(
+              child: Column(
                 children: [
-                  Icon(Icons.group, color: colorScheme.onSurface.withOpacity(0.6)),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${_members.length} members',
-                    style: TextStyle(
-                      color: colorScheme.onSurface.withOpacity(0.6),
-                      fontSize: 14,
-                    ),
+                  Row(
+                    children: [
+                      Icon(Icons.group, color: colorScheme.onSurface.withOpacity(0.6)),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${_members.length} members',
+                        style: TextStyle(
+                          color: colorScheme.onSurface.withOpacity(0.6),
+                          fontSize: 14,
+                        ),
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: () {
+                          _navigateWithTransition(AddExpenseScreen(
+                            group: _group!,
+                            members: _members,
+                          ));
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add Expense'),
+                      ),
+                    ],
                   ),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: () {
-                      _navigateWithTransition(AddExpenseScreen(
-                        group: _group!,
-                        members: _members,
-                      ));
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Expense'),
+
+                  // NEW: Filter Dropdown Row
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.filter_list,
+                        color: colorScheme.onSurface.withOpacity(0.6),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Show:',
+                        style: TextStyle(
+                          color: colorScheme.onSurface.withOpacity(0.7),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          height: 40,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: colorScheme.outline.withOpacity(0.3)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<ExpenseFilter>(
+                              value: _currentFilter,
+                              isExpanded: true,
+                              icon: Icon(
+                                Icons.keyboard_arrow_down,
+                                color: colorScheme.onSurface.withOpacity(0.6),
+                              ),
+                              items: ExpenseFilter.values.map((filter) {
+                                return DropdownMenuItem<ExpenseFilter>(
+                                  value: filter,
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        filter.icon,
+                                        size: 18,
+                                        color: colorScheme.onSurface.withOpacity(0.7),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        filter.label,
+                                        style: TextStyle(
+                                          color: colorScheme.onSurface,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (ExpenseFilter? newFilter) {
+                                if (newFilter != null) {
+                                  setState(() {
+                                    _currentFilter = newFilter;
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
 
-            // Show/Hide Settled Expenses Toggle
-            StreamBuilder<List<SettlementModel>>(
-              stream: _databaseService.streamGroupSettlements(widget.groupId),
-              builder: (context, settlementSnapshot) {
-                List<SettlementModel> settlements = settlementSnapshot.data ?? [];
-
-                int settledExpensesCount = 0;
-                if (settlementSnapshot.hasData) {
-                  Set<String> settledExpenseIds = settlements
-                      .expand((s) => s.settledExpenseIds)
-                      .toSet();
-                  settledExpensesCount = settledExpenseIds.length;
-                }
-
-                if (settledExpensesCount == 0) {
-                  return const SizedBox.shrink();
-                }
-
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _showSettledExpenses ? Icons.visibility_off : Icons.visibility,
-                        color: colorScheme.onSurface.withOpacity(0.6),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _showSettledExpenses
-                              ? 'Hiding settled expenses'
-                              : '$settledExpensesCount settled expenses hidden',
-                          style: TextStyle(
-                            color: colorScheme.onSurface.withOpacity(0.6),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _showSettledExpenses = !_showSettledExpenses;
-                          });
-                        },
-                        icon: Icon(
-                          _showSettledExpenses ? Icons.expand_less : Icons.expand_more,
-                          size: 18,
-                        ),
-                        label: Text(
-                          _showSettledExpenses ? 'Hide settled' : 'Show settled',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          minimumSize: const Size(0, 0),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-
-            // Expenses List
+// UPDATED: Expenses List with new stream
             Expanded(
-              child: StreamBuilder<List<dynamic>>(
-                // Combine both streams to prevent rebuild conflicts
-                stream: Rx.combineLatest2(
-                  _databaseService.streamGroupExpenses(widget.groupId),
-                  _databaseService.streamGroupSettlements(widget.groupId),
-                      (List<ExpenseModel> expenses, List<SettlementModel> settlements) => [expenses, settlements],
-                ).distinct(),
+              child: StreamBuilder<List<ExpenseModel>>(
+                stream: _getFilteredExpenseStream(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                     return _buildExpenseListSkeleton();
                   }
 
-                  if (!snapshot.hasData) {
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
                     return _buildEmptyExpensesState();
                   }
 
-                  List<ExpenseModel> expenses = snapshot.data![0] as List<ExpenseModel>;
-                  List<SettlementModel> settlements = snapshot.data![1] as List<SettlementModel>;
+                  List<ExpenseModel> expenses = snapshot.data!;
 
-                  if (expenses.isEmpty) {
-                    return _buildEmptyExpensesState();
-                  }
+                  return Column(
+                    children: [
+                      // Filter status indicator
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _getFilterStatusColor().withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: _getFilterStatusColor().withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _currentFilter.icon,
+                              size: 16,
+                              color: _getFilterStatusColor(),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _getFilterStatusText(expenses.length),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _getFilterStatusColor(),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
 
-                  List<ExpenseModel> filteredExpenses = _filterExpenses(expenses, settlements);
-
-                  if (filteredExpenses.isEmpty && !_showSettledExpenses) {
-                    return _buildAllSettledState();
-                  }
-
-                  return ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: filteredExpenses.length,
-                    itemBuilder: (context, index) {
-                      return _buildExpenseItem(filteredExpenses[index], settlements);
-                    },
+                      // Expenses list
+                      Expanded(
+                        child: ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: expenses.length,
+                          itemBuilder: (context, index) {
+                            return _buildExpenseItem(expenses[index]);
+                          },
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),
@@ -651,6 +719,109 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
         child: Icon(
           Icons.add,
           color: colorScheme.onPrimary,
+        ),
+      ),
+    );
+  }
+
+  Color _getFilterStatusColor() {
+    switch (_currentFilter) {
+      case ExpenseFilter.unsettledOnly:
+        return Colors.orange;
+      case ExpenseFilter.all:
+        return Colors.blue;
+      case ExpenseFilter.settledOnly:
+        return Colors.green;
+    }
+  }
+
+  String _getFilterStatusText(int count) {
+    switch (_currentFilter) {
+      case ExpenseFilter.unsettledOnly:
+        return 'Showing $count unsettled expenses';
+      case ExpenseFilter.all:
+        return 'Showing all $count expenses';
+      case ExpenseFilter.settledOnly:
+        return 'Showing $count settled expenses';
+    }
+  }
+
+  Widget _buildExpenseItem(ExpenseModel expense) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    UserModel? paidByUser = _members.firstWhere(
+          (member) => member.id == expense.paidBy,
+      orElse: () => UserModel(
+        id: '',
+        name: 'Unknown',
+        email: '',
+        groupIds: [],
+        createdAt: DateTime.now(),
+      ),
+    );
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+      child: Hero(
+        tag: 'expense_${expense.id}',
+        child: Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          color: theme.cardColor,
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: theme.primaryColor,
+              child: Text(
+                expense.category.emoji,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            title: Text(
+              expense.description,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Paid by ${paidByUser.name}',
+                  style: TextStyle(
+                    color: colorScheme.onSurface.withOpacity(0.8),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '${expense.date.day}/${expense.date.month}/${expense.date.year}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+            trailing: Text(
+              _formatCurrency(expense.amount),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            onTap: () {
+              _navigateWithTransition(ExpenseDetailScreen(
+                expense: expense,
+                group: _group!,
+                members: _members,
+              ));
+            },
+          ),
         ),
       ),
     );
@@ -706,202 +877,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAllSettledState() {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.4,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.check_circle,
-                size: 64,
-                color: Colors.green.shade500,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'All expenses settled!',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Colors.green.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'All current expenses have been settled.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: colorScheme.onSurface.withOpacity(0.7),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _showSettledExpenses = true;
-                  });
-                },
-                child: const Text('Show settled expenses'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildExpenseItem(ExpenseModel expense, List<SettlementModel> settlements) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    UserModel? paidByUser = _members.firstWhere(
-          (member) => member.id == expense.paidBy,
-      orElse: () => UserModel(
-        id: '',
-        name: 'Unknown',
-        email: '',
-        groupIds: [],
-        createdAt: DateTime.now(),
-      ),
-    );
-
-    bool isSettled = _isExpenseFullySettled(expense, settlements);
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeInOut,
-      child: Hero(
-        tag: 'expense_${expense.id}',
-        child: Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          color: theme.cardColor,
-          child: ListTile(
-            leading: Stack(
-              children: [
-                CircleAvatar(
-                  backgroundColor: isSettled
-                      ? Colors.grey.shade400
-                      : theme.primaryColor,
-                  child: Text(
-                    expense.category.emoji,
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: isSettled
-                          ? Colors.white.withOpacity(0.7)
-                          : Colors.white,
-                    ),
-                  ),
-                ),
-                if (isSettled)
-                  Positioned(
-                    right: -2,
-                    bottom: -2,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade500,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.check,
-                        color: Colors.white,
-                        size: 12,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            title: Text(
-              expense.description,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: isSettled
-                    ? colorScheme.onSurface.withOpacity(0.6)
-                    : colorScheme.onSurface,
-                decoration: isSettled
-                    ? TextDecoration.lineThrough
-                    : TextDecoration.none,
-              ),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Paid by ${paidByUser.name}',
-                        style: TextStyle(
-                          color: isSettled
-                              ? colorScheme.onSurface.withOpacity(0.4)
-                              : colorScheme.onSurface.withOpacity(0.8),
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (isSettled) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade100,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'SETTLED',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green.shade700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                Text(
-                  '${expense.date.day}/${expense.date.month}/${expense.date.year}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isSettled
-                        ? colorScheme.onSurface.withOpacity(0.4)
-                        : colorScheme.onSurface.withOpacity(0.6),
-                  ),
-                ),
-              ],
-            ),
-            trailing: Text(
-              _formatCurrency(expense.amount),
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: isSettled
-                    ? colorScheme.onSurface.withOpacity(0.5)
-                    : colorScheme.onSurface,
-                decoration: isSettled
-                    ? TextDecoration.lineThrough
-                    : TextDecoration.none,
-              ),
-            ),
-            onTap: () {
-              _navigateWithTransition(ExpenseDetailScreen(
-                expense: expense,
-                group: _group!,
-                members: _members,
-              ));
-            },
           ),
         ),
       ),
@@ -1010,6 +985,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with AutomaticKee
       ],
     );
   }
+
+  // ADD this method to show the explanation dialog:
 
   void _showGroupOptions(BuildContext context) {
     final theme = Theme.of(context);

@@ -34,6 +34,9 @@ class ExpenseModel {
   final String? receiptUrl;
   final String? notes;
 
+  // NEW: Track which users have settled this expense
+  final Map<String, bool> settledByUser;
+
   ExpenseModel({
     required this.id,
     required this.groupId,
@@ -48,6 +51,7 @@ class ExpenseModel {
     required this.createdAt,
     this.receiptUrl,
     this.notes,
+    this.settledByUser = const {}, // NEW: Default to empty map
   });
 
   // Convert to Map for Firebase
@@ -66,6 +70,7 @@ class ExpenseModel {
       'createdAt': createdAt.millisecondsSinceEpoch,
       'receiptUrl': receiptUrl,
       'notes': notes,
+      'settledByUser': settledByUser, // NEW: Add to Firebase
     };
   }
 
@@ -91,6 +96,7 @@ class ExpenseModel {
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
       receiptUrl: map['receiptUrl'],
       notes: map['notes'],
+      settledByUser: Map<String, bool>.from(map['settledByUser'] ?? {}), // NEW: Read from Firebase
     );
   }
 
@@ -109,6 +115,7 @@ class ExpenseModel {
     DateTime? createdAt,
     String? receiptUrl,
     String? notes,
+    Map<String, bool>? settledByUser, // NEW: Add to copyWith
   }) {
     return ExpenseModel(
       id: id ?? this.id,
@@ -124,6 +131,7 @@ class ExpenseModel {
       createdAt: createdAt ?? this.createdAt,
       receiptUrl: receiptUrl ?? this.receiptUrl,
       notes: notes ?? this.notes,
+      settledByUser: settledByUser ?? this.settledByUser, // NEW: Include in copyWith
     );
   }
 
@@ -148,13 +156,45 @@ class ExpenseModel {
     }
   }
 
-  // Check if expense is settled for a user
+  // UPDATED: Check if expense is settled for a user (using settlement tracking)
   bool isSettledFor(String userId) {
-    return paidBy == userId; // Simplified - in real app you'd track settlements
+    return settledByUser[userId] ?? false;
+  }
+
+  // NEW: Check if expense is settled for a specific user (alias for consistency)
+  bool isSettledForUser(String userId) {
+    return isSettledFor(userId);
+  }
+
+  // NEW: Check if expense is fully settled for all participants
+  bool isFullySettled() {
+    for (String participant in splitBetween) {
+      if (participant != paidBy && !isSettledForUser(participant)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // NEW: Get unsettled participants (those who still owe money)
+  List<String> getUnsettledParticipants() {
+    return splitBetween
+        .where((participant) => participant != paidBy && !isSettledForUser(participant))
+        .toList();
+  }
+
+  // NEW: Create a copy with updated settlement status for a specific user
+  ExpenseModel copyWithSettlement(String userId, bool isSettled) {
+    Map<String, bool> newSettledByUser = Map.from(settledByUser);
+    newSettledByUser[userId] = isSettled;
+
+    return copyWith(
+      settledByUser: newSettledByUser,
+    );
   }
 
   @override
   String toString() {
-    return 'ExpenseModel(id: $id, description: $description, amount: €$amount, paidBy: $paidBy)';
+    return 'ExpenseModel(id: $id, description: $description, amount: €$amount, paidBy: $paidBy, settled: $settledByUser)';
   }
 }

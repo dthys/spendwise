@@ -6,8 +6,11 @@ import '../models/user_model.dart';
 import '../models/group_model.dart';
 import '../models/expense_model.dart';
 import '../models/settlement_model.dart';
+import '../screens/balances/balances_screen.dart';
 import '../services/notification_service.dart';
 import '../models/friend_balance_model.dart';
+import 'dart:math' as math;
+
 
 
 class DatabaseService {
@@ -380,6 +383,495 @@ class DatabaseService {
         print('❌ Error adding member to group: $e');
       }
       rethrow;
+    }
+  }
+
+  // NEW: Enhanced balance calculation that respects user-specific settlements
+  Map<String, double> calculateUserSpecificBalances(
+      List<ExpenseModel> expenses,
+      List<SettlementModel> settlements,
+      String? viewingUserId,
+      ) {
+    if (kDebugMode) {
+      print('🧮 === CALCULATING USER-SPECIFIC BALANCES ===');
+      print('👤 Viewing user: $viewingUserId');
+      print('📝 Total expenses: ${expenses.length}');
+      print('💰 Total settlements: ${settlements.length}');
+    }
+
+    Map<String, double> balances = {};
+
+    // Step 1: Calculate balances from expenses, considering settlement status
+    for (ExpenseModel expense in expenses) {
+      if (kDebugMode) {
+        print('📊 Processing expense: ${expense.description}');
+        print('💰 Amount: €${expense.amount}, Paid by: ${expense.paidBy}');
+        print('👥 Split between: ${expense.splitBetween}');
+        print('✅ Settled status: ${expense.settledByUser}');
+      }
+
+      // Payer gets credit for what they paid
+      balances[expense.paidBy] = (balances[expense.paidBy] ?? 0) + expense.amount;
+
+      // Each participant owes their share ONLY if they haven't settled it
+      for (String participant in expense.splitBetween) {
+        double amountOwed = expense.getAmountOwedBy(participant);
+
+        // Check if this expense is settled for this participant
+        bool isSettled = expense.isSettledForUser(participant);
+
+        if (viewingUserId != null) {
+          // For user-specific view, check if either:
+          // 1. The viewing user has settled this (if they're the participant)
+          // 2. The viewing user has received settlement for this (if they're the payer)
+          if (participant == viewingUserId) {
+            isSettled = expense.isSettledForUser(viewingUserId);
+          } else if (expense.paidBy == viewingUserId) {
+            isSettled = expense.isSettledForUser(participant);
+          }
+        }
+
+        if (!isSettled) {
+          // Normal case: participant still owes money
+          balances[participant] = (balances[participant] ?? 0) - amountOwed;
+          if (kDebugMode) {
+            print('💸 $participant owes €${amountOwed.toStringAsFixed(2)} (not settled)');
+          }
+        } else {
+          // FIXED: When debt is settled, reduce the payer's credit too
+          balances[expense.paidBy] = (balances[expense.paidBy] ?? 0) - amountOwed;
+          if (kDebugMode) {
+            print('✅ $participant\'s debt of €${amountOwed.toStringAsFixed(2)} is settled - reducing ${expense.paidBy}\'s credit');
+          }
+        }
+      }
+    }
+
+    if (kDebugMode) {
+      print('📊 Final balances: $balances');
+    }
+
+    return balances;
+  }
+
+  Future<void> updateUserSettlementCheckpoint(String userId, String groupId) async {
+    try {
+      String docId = '${userId}_${groupId}_checkpoint';
+      DateTime now = DateTime.now();
+
+      await _firestore
+          .collection('settlement_checkpoints')
+          .doc(docId)
+          .set({
+        'userId': userId,
+        'groupId': groupId,
+        'fullySettledAt': now.millisecondsSinceEpoch,
+        'updatedAt': now.millisecondsSinceEpoch,
+      }, SetOptions(merge: true));
+
+      if (kDebugMode) {
+        print('✅ Updated settlement checkpoint for $userId in group $groupId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error updating settlement checkpoint: $e');
+      }
+    }
+  }
+
+  Future<DateTime?> getUserLastSettlementCheckpoint(String userId, String groupId) async {
+    try {
+      String docId = '${userId}_${groupId}_checkpoint';
+
+      DocumentSnapshot doc = await _firestore
+          .collection('settlement_checkpoints')
+          .doc(docId)
+          .get();
+
+      if (doc.exists) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        return DateTime.fromMillisecondsSinceEpoch(data['fullySettledAt'] ?? 0);
+      }
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error getting settlement checkpoint: $e');
+      }
+      return null;
+    }
+  }
+
+// 2. Add expense filtering method
+  Future<List<ExpenseModel>> getFilteredExpensesForUser(
+      String groupId,
+      String? userId
+      ) async {
+    try {
+      // Get all expenses
+      List<ExpenseModel> allExpenses = await getGroupExpenses(groupId);
+
+      if (userId == null) {
+        return allExpenses; // Return all if no user specified
+      }
+
+      // Get user's last settlement checkpoint
+      DateTime? lastCheckpoint = await getUserLastSettlementCheckpoint(userId, groupId);
+
+      List<ExpenseModel> filteredExpenses = [];
+
+      for (ExpenseModel expense in allExpenses) {
+        bool shouldShow = true;
+
+        // Rule 1: Hide expenses older than user's last full settlement
+        if (lastCheckpoint != null && expense.date.isBefore(lastCheckpoint)) {
+          shouldShow = false;
+          if (kDebugMode) {
+            print('🙈 Hiding expense "${expense.description}" - older than settlement checkpoint');
+          }
+        }
+
+        // Rule 2: Hide expenses that are completely settled for everyone
+        else if (expense.isFullySettled()) {
+          shouldShow = false;
+          if (kDebugMode) {
+            print('🙈 Hiding expense "${expense.description}" - fully settled by everyone');
+          }
+        }
+
+        // Rule 3: For expenses involving this user, hide if settled for them
+        else if (expense.splitBetween.contains(userId) &&
+            expense.paidBy != userId &&
+            expense.isSettledForUser(userId)) {
+          shouldShow = false;
+          if (kDebugMode) {
+            print('🙈 Hiding expense "${expense.description}" - settled for this user');
+          }
+        }
+
+        if (shouldShow) {
+          filteredExpenses.add(expense);
+        }
+      }
+
+      if (kDebugMode) {
+        print('📊 Filtered expenses: ${filteredExpenses.length}/${allExpenses.length} shown for user $userId');
+      }
+
+      return filteredExpenses;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error filtering expenses: $e');
+      }
+      return await getGroupExpenses(groupId); // Return all on error
+    }
+  }
+
+// 3. Create a stream version for real-time updates
+  Stream<List<ExpenseModel>> streamFilteredExpensesForUser(String groupId, String? userId) {
+    return streamGroupExpenses(groupId).asyncMap((expenses) async {
+      if (userId == null) return expenses;
+
+      DateTime? lastCheckpoint = await getUserLastSettlementCheckpoint(userId, groupId);
+
+      return expenses.where((expense) {
+        // Rule 1: Hide expenses older than user's last full settlement
+        if (lastCheckpoint != null && expense.date.isBefore(lastCheckpoint)) {
+          return false;
+        }
+
+        // Rule 2: Hide expenses that are completely settled for everyone
+        if (expense.isFullySettled()) {
+          return false;
+        }
+
+        // Rule 3: For expenses involving this user, hide if settled for them
+        if (expense.splitBetween.contains(userId) &&
+            expense.paidBy != userId &&
+            expense.isSettledForUser(userId)) {
+          return false;
+        }
+
+        return true;
+      }).toList();
+    });
+  }
+
+  // NEW: Process settlement and mark affected expenses as settled
+  Future<void> processSettlementWithExpenseTracking(SettlementModel settlement) async {
+    try {
+      if (kDebugMode) {
+        print('🔄 === PROCESSING SETTLEMENT WITH EXPENSE TRACKING ===');
+        print('💰 Settlement: ${settlement.fromUserId} → ${settlement.toUserId}, €${settlement.amount}');
+      }
+
+      // 1. Create the settlement record
+      await createSettlement(settlement);
+
+      // 2. Get all expenses in the group
+      List<ExpenseModel> expenses = await getGroupExpenses(settlement.groupId);
+
+      // 3. Find expenses where the debtor owes money to the creditor and mark them as settled
+      List<ExpenseModel> expensesToUpdate = [];
+      double remainingSettlementAmount = settlement.amount;
+
+      // Sort expenses by date (oldest first) to settle in chronological order
+      expenses.sort((a, b) => a.date.compareTo(b.date));
+
+      for (ExpenseModel expense in expenses) {
+        if (remainingSettlementAmount <= 0.01) break;
+
+        // Check if this expense involves the settlement parties
+        bool debtorOwesInThisExpense = expense.paidBy == settlement.toUserId &&
+            expense.splitBetween.contains(settlement.fromUserId) &&
+            !expense.isSettledForUser(settlement.fromUserId);
+
+        if (debtorOwesInThisExpense) {
+          double amountOwedInExpense = expense.getAmountOwedBy(settlement.fromUserId);
+
+          if (amountOwedInExpense > 0) {
+            // Mark this expense as settled for the debtor
+            ExpenseModel updatedExpense = expense.copyWithSettlement(settlement.fromUserId, true);
+            expensesToUpdate.add(updatedExpense);
+
+            remainingSettlementAmount -= amountOwedInExpense;
+
+            if (kDebugMode) {
+              print('✅ Marking expense "${expense.description}" as settled for ${settlement.fromUserId}');
+              print('💰 Amount settled: €${amountOwedInExpense.toStringAsFixed(2)}');
+              print('💰 Remaining settlement: €${remainingSettlementAmount.toStringAsFixed(2)}');
+            }
+          }
+        }
+      }
+
+      // 4. Update all affected expenses
+      for (ExpenseModel expense in expensesToUpdate) {
+        await _firestore.collection('expenses').doc(expense.id).update(expense.toMap());
+      }
+
+      // 5. Add activity log
+      UserModel? fromUser = await getUser(settlement.fromUserId);
+      UserModel? toUser = await getUser(settlement.toUserId);
+
+      await addActivityLog(
+        ActivityLogModel(
+          id: _firestore.collection('activity_logs').doc().id,
+          groupId: settlement.groupId,
+          userId: settlement.fromUserId,
+          userName: fromUser?.name ?? 'Unknown User',
+          type: ActivityType.settlement,
+          description: '${fromUser?.name ?? "Unknown"} settled €${settlement.amount.toStringAsFixed(2)} with ${toUser?.name ?? "Unknown"}',
+          metadata: {
+            'settlementId': settlement.id,
+            'fromUserId': settlement.fromUserId,
+            'toUserId': settlement.toUserId,
+            'amount': settlement.amount,
+            'method': settlement.method.name,
+            'expensesSettled': expensesToUpdate.length,
+          },
+          timestamp: DateTime.now(),
+        ),
+        currentUserId: settlement.fromUserId,
+      );
+
+      if (kDebugMode) {
+        print('✅ Settlement processed successfully');
+        print('📊 Updated ${expensesToUpdate.length} expenses');
+      }
+
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error processing settlement: $e');
+      }
+      rethrow;
+    }
+  }
+
+  // NEW: Calculate individual debts with settlement awareness
+  Map<String, List<IndividualDebt>> calculateIndividualDebtsWithSettlements(
+      List<ExpenseModel> expenses,
+      String? viewingUserId,
+      ) {
+    Map<String, Map<String, double>> memberToMemberDebts = {};
+
+    // Get all unique member IDs from expenses
+    Set<String> allMemberIds = {};
+    for (ExpenseModel expense in expenses) {
+      allMemberIds.add(expense.paidBy);
+      allMemberIds.addAll(expense.splitBetween);
+    }
+
+    // Initialize debt matrix
+    for (String memberId in allMemberIds) {
+      memberToMemberDebts[memberId] = {};
+      for (String otherMemberId in allMemberIds) {
+        if (memberId != otherMemberId) {
+          memberToMemberDebts[memberId]![otherMemberId] = 0.0;
+        }
+      }
+    }
+
+    // Calculate debts from expenses, considering settlement status
+    for (ExpenseModel expense in expenses) {
+      if (expense.splitBetween.length <= 1) continue;
+
+      for (String participant in expense.splitBetween) {
+        if (participant != expense.paidBy) {
+          // Check if settled for this participant
+          bool isSettled = expense.isSettledForUser(participant);
+
+          // Apply user-specific settlement view if specified
+          if (viewingUserId != null) {
+            if (participant == viewingUserId) {
+              isSettled = expense.isSettledForUser(viewingUserId);
+            } else if (expense.paidBy == viewingUserId) {
+              isSettled = expense.isSettledForUser(participant);
+            }
+          }
+
+          if (!isSettled) {
+            double amountOwed = expense.getAmountOwedBy(participant);
+            memberToMemberDebts[participant]![expense.paidBy] =
+                (memberToMemberDebts[participant]![expense.paidBy] ?? 0) + amountOwed;
+          }
+        }
+      }
+    }
+
+    // Convert to IndividualDebt objects and filter out zero amounts
+    Map<String, List<IndividualDebt>> result = {};
+    for (String memberId in memberToMemberDebts.keys) {
+      result[memberId] = [];
+      memberToMemberDebts[memberId]!.forEach((creditorId, amount) {
+        if (amount > 0.01) {
+          result[memberId]!.add(IndividualDebt(
+            debtorId: memberId,
+            creditorId: creditorId,
+            amount: amount,
+          ));
+        }
+      });
+    }
+
+    return result;
+  }
+
+  // NEW: Calculate debts owed TO a specific member (considering settlements)
+  List<IndividualDebt> calculateDebtsOwedToMember(
+      String memberId,
+      List<ExpenseModel> expenses,
+      String? viewingUserId,
+      ) {
+    Map<String, double> debtsToMember = {};
+
+    // Calculate debts from expenses where this member paid (and not settled)
+    for (ExpenseModel expense in expenses) {
+      if (expense.paidBy == memberId && expense.splitBetween.length > 1) {
+        for (String participant in expense.splitBetween) {
+          if (participant != memberId) {
+            // Check if this expense is settled for this participant
+            bool isSettled = expense.isSettledForUser(participant);
+
+            // Apply user-specific view
+            if (viewingUserId != null) {
+              if (participant == viewingUserId) {
+                isSettled = expense.isSettledForUser(viewingUserId);
+              } else if (expense.paidBy == viewingUserId) {
+                isSettled = expense.isSettledForUser(participant);
+              }
+            }
+
+            if (!isSettled) {
+              double amountOwed = expense.getAmountOwedBy(participant);
+              debtsToMember[participant] = (debtsToMember[participant] ?? 0) + amountOwed;
+            }
+          }
+        }
+      }
+    }
+
+    // Convert to IndividualDebt objects
+    List<IndividualDebt> result = [];
+    debtsToMember.forEach((debtorId, amount) {
+      if (amount > 0.01) {
+        result.add(IndividualDebt(
+          debtorId: debtorId,
+          creditorId: memberId,
+          amount: amount,
+        ));
+      }
+    });
+
+    return result;
+  }
+
+  // NEW: Updated method to replace the old _confirmSettlement
+  Future<void> confirmSettlementWithExpenseTracking(
+      SimplifiedDebt debt,
+      UserModel fromUser,
+      UserModel toUser,
+      SettlementMethod method,
+      String? notes,
+      ) async {
+    try {
+      if (kDebugMode) {
+        print('💰 === CONFIRMING SETTLEMENT ===');
+        print('👤 From: ${fromUser.name} (${debt.fromUserId})');
+        print('👤 To: ${toUser.name} (${debt.toUserId})');
+        print('💰 Amount: €${debt.amount}');
+      }
+
+      // Create settlement record
+      SettlementModel settlementModel = SettlementModel(
+        id: generateSettlementId(),
+        groupId: debt.groupId,
+        fromUserId: debt.fromUserId,
+        toUserId: debt.toUserId,
+        amount: debt.amount,
+        settledAt: DateTime.now(),
+        method: method,
+        notes: notes,
+      );
+
+      // Process the settlement with expense tracking
+      await processSettlementWithExpenseTracking(settlementModel);
+
+      // NEW: Check if the user is now fully settled
+      Map<String, double> balances = await calculateGroupBalancesWithSettlements(debt.groupId);
+      double userBalance = balances[debt.fromUserId] ?? 0.0;
+
+      if (userBalance.abs() <= 0.01) {
+        // User is fully settled - create checkpoint
+        await updateUserSettlementCheckpoint(debt.fromUserId, debt.groupId);
+        if (kDebugMode) {
+          print('🎯 User ${debt.fromUserId} is now fully settled - checkpoint created');
+        }
+      }
+
+      if (kDebugMode) {
+        print('✅ Settlement confirmed and expenses updated');
+      }
+
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error confirming settlement: $e');
+      }
+      rethrow;
+    }
+  }
+  // UPDATED: Replace your existing calculateGroupBalancesWithSettlements method
+  Future<Map<String, double>> calculateGroupBalancesWithSettlements(String groupId) async {
+    try {
+      List<ExpenseModel> expenses = await getGroupExpenses(groupId);
+      List<SettlementModel> settlements = await getGroupSettlements(groupId);
+
+      // Use the new calculation method (without viewingUserId for global view)
+      return calculateUserSpecificBalances(expenses, settlements, null);
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error calculating group balances: $e');
+      }
+      return {};
     }
   }
 
@@ -1080,22 +1572,23 @@ class DatabaseService {
 
         if (!userInvolved || !friendInvolved) continue;
 
-        // Check if this expense portion is settled between these two users
-        bool isSettled = settlements.any((settlement) =>
-        settlement.settledExpenseIds.contains(expense.id) &&
-            ((settlement.fromUserId == userId && settlement.toUserId == friendId) ||
-                (settlement.fromUserId == friendId && settlement.toUserId == userId))
-        );
-
-        if (isSettled) continue; // Skip settled expenses
-
-        // Calculate the direct relationship for this expense
+        // REMOVED: Check for settled expenses - we now use simplified approach
+        // Just calculate the direct relationship for this expense
         if (expense.paidBy == userId && expense.splitBetween.contains(friendId)) {
           // User paid, friend owes their share
           directBalance += expense.getAmountOwedBy(friendId);
         } else if (expense.paidBy == friendId && expense.splitBetween.contains(userId)) {
           // Friend paid, user owes their share
           directBalance -= expense.getAmountOwedBy(userId);
+        }
+      }
+
+      // Apply settlements between these two users
+      for (SettlementModel settlement in settlements) {
+        if ((settlement.fromUserId == userId && settlement.toUserId == friendId)) {
+          directBalance += settlement.amount;
+        } else if ((settlement.fromUserId == friendId && settlement.toUserId == userId)) {
+          directBalance -= settlement.amount;
         }
       }
 
@@ -1349,129 +1842,78 @@ class DatabaseService {
 
   // BALANCE CALCULATIONS
 
-  // Calculate balances for a group (WITHOUT settlements - original method)
-  Future<Map<String, double>> calculateGroupBalances(String groupId) async {
-    try {
-      List<ExpenseModel> expenses = await getGroupExpenses(groupId);
-      Map<String, double> balances = {};
 
-      for (ExpenseModel expense in expenses) {
-        // Add amount paid by payer
-        balances[expense.paidBy] = (balances[expense.paidBy] ?? 0) + expense.amount;
-
-        // Subtract individual shares from each participant
-        for (String participant in expense.splitBetween) {
-          double amountOwed = expense.getAmountOwedBy(participant);
-          balances[participant] = (balances[participant] ?? 0) - amountOwed;
-        }
-      }
-
-      return balances;
-    } catch (e) {
-      throw Exception('Failed to calculate group balances: $e');
-    }
-  }
-
-  // Calculate balances considering settlements (NEW method)
-  Future<Map<String, double>> calculateGroupBalancesWithSettlements(String groupId) async {
+  List<SimplifiedDebt> calculateSimplifiedDebts(Map<String, double> balances) {
     if (kDebugMode) {
-      print('🧮 === CALCULATING GROUP BALANCES WITH SETTLEMENTS ===');
+      print('🎯 === CALCULATING SIMPLIFIED DEBTS ===');
     }
 
-    try {
-      // Get expenses and settlements
-      List<ExpenseModel> expenses = await getGroupExpenses(groupId);
-      List<SettlementModel> settlements = await getGroupSettlements(groupId);
+    List<SimplifiedDebt> debts = [];
 
+    // Separate creditors (positive balance) and debtors (negative balance)
+    List<MapEntry<String, double>> creditors = [];
+    List<MapEntry<String, double>> debtors = [];
+
+    balances.forEach((userId, balance) {
+      if (balance > 0.01) {
+        creditors.add(MapEntry(userId, balance));
+      } else if (balance < -0.01) {
+        debtors.add(MapEntry(userId, -balance)); // Make positive for easier calculation
+      }
+    });
+
+    if (creditors.isEmpty || debtors.isEmpty) {
       if (kDebugMode) {
-        print('📝 Total expenses: ${expenses.length}');
+        print('✅ No debts remaining');
       }
-      if (kDebugMode) {
-        print('💰 Total settlements: ${settlements.length}');
-      }
-
-      Map<String, double> balances = {};
-
-      for (ExpenseModel expense in expenses) {
-        // Check if this expense has any settlements
-        List<SettlementModel> expenseSettlements = settlements
-            .where((s) => s.settledExpenseIds.contains(expense.id))
-            .toList();
-
-        if (expenseSettlements.isEmpty) {
-          // No settlements for this expense - calculate normally
-          _addExpenseToBalances(balances, expense);
-        } else {
-          // This expense has settlements - calculate only unsettled portions
-          _addUnsettledExpenseToBalances(balances, expense, expenseSettlements);
-        }
-      }
-
-      if (kDebugMode) {
-        print('📊 Final group balances: $balances');
-      }
-      return balances;
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Error calculating group balances: $e');
-      }
-      return {};
+      return debts;
     }
-  }
 
-  // Helper method for normal expense calculation
-  void _addExpenseToBalances(Map<String, double> balances, ExpenseModel expense) {
-    // Payer gets credit
-    balances[expense.paidBy] = (balances[expense.paidBy] ?? 0) + expense.amount;
+    // Sort by amount (largest first) for optimal debt simplification
+    creditors.sort((a, b) => b.value.compareTo(a.value));
+    debtors.sort((a, b) => b.value.compareTo(a.value));
 
-    // Split participants owe their share
-    for (String participant in expense.splitBetween) {
-      double amountOwed = expense.getAmountOwedBy(participant);
-      balances[participant] = (balances[participant] ?? 0) - amountOwed;
+    if (kDebugMode) {
+      print('💰 Creditors: $creditors');
+      print('💸 Debtors: $debtors');
     }
-  }
 
-// Helper method for settled expense calculation
-  void _addUnsettledExpenseToBalances(
-      Map<String, double> balances,
-      ExpenseModel expense,
-      List<SettlementModel> expenseSettlements,
-      ) {
-    // Get all user pairs that have settled this expense
-    Set<String> settledUserPairs = expenseSettlements
-        .map((s) => '${s.fromUserId}-${s.toUserId}')
-        .toSet();
+    // Calculate minimal settlements using greedy algorithm
+    int i = 0, j = 0;
+    while (i < debtors.length && j < creditors.length) {
+      String debtor = debtors[i].key;
+      String creditor = creditors[j].key;
+      double debtAmount = debtors[i].value;
+      double creditAmount = creditors[j].value;
 
-    // Add reverse pairs (settlements work both ways)
-    List<String> reversePairs = expenseSettlements
-        .map((s) => '${s.toUserId}-${s.fromUserId}')
-        .toList();
-    settledUserPairs.addAll(reversePairs);
+      double settlementAmount = math.min(debtAmount, creditAmount);
 
-    String payer = expense.paidBy;
+      if (settlementAmount > 0.01) {
+        debts.add(SimplifiedDebt(
+          fromUserId: debtor,
+          toUserId: creditor,
+          amount: settlementAmount, groupId: '',
+        ));
 
-    // For each participant in the expense
-    for (String participant in expense.splitBetween) {
-      double participantOwes = expense.getAmountOwedBy(participant);
-
-      if (participant == payer) {
-        // Payer doesn't owe themselves
-        continue;
-      }
-
-      // Check if this debt has been settled
-      bool isSettled = settledUserPairs.contains('$participant-$payer');
-
-      if (!isSettled) {
-        // This portion is NOT settled - include in balances
-        balances[payer] = (balances[payer] ?? 0) + participantOwes;
-        balances[participant] = (balances[participant] ?? 0) - participantOwes;
-      } else {
         if (kDebugMode) {
-          print('✅ Settled portion: $participant owes $payer €${participantOwes.toStringAsFixed(2)} for expense ${expense.id}');
+          print('💡 Debt: $debtor owes $creditor €${settlementAmount.toStringAsFixed(2)}');
         }
       }
+
+      // Update remaining amounts
+      debtors[i] = MapEntry(debtor, debtAmount - settlementAmount);
+      creditors[j] = MapEntry(creditor, creditAmount - settlementAmount);
+
+      // Move to next if current is settled
+      if (debtors[i].value < 0.01) i++;
+      if (creditors[j].value < 0.01) j++;
     }
+
+    if (kDebugMode) {
+      print('🎯 Simplified debts: ${debts.length} settlements needed');
+    }
+
+    return debts;
   }
 
   // Get user's total balance across all groups
@@ -1490,6 +1932,8 @@ class DatabaseService {
       throw Exception('Failed to get user total balance: $e');
     }
   }
+
+
 
   // REAL-TIME STREAMS
 
@@ -1523,5 +1967,24 @@ class DatabaseService {
       }
       return null;
     });
+  }
+}
+
+class SimplifiedDebt {
+  final String fromUserId;
+  final String toUserId;
+  final double amount;
+  final String groupId; // This should already be there
+
+  SimplifiedDebt({
+    required this.fromUserId,
+    required this.toUserId,
+    required this.amount,
+    required this.groupId, // This should already be there
+  });
+
+  @override
+  String toString() {
+    return 'SimplifiedDebt(from: $fromUserId, to: $toUserId, amount: €${amount.toStringAsFixed(2)}, group: $groupId)';
   }
 }

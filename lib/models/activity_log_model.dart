@@ -56,6 +56,7 @@ enum ActivityType {
   memberAdded,
   memberRemoved,
   groupCreated,
+  settlement, // ✅ Correct syntax
   other,
 }
 
@@ -74,6 +75,8 @@ extension ActivityTypeExtension on ActivityType {
         return 'Member Removed';
       case ActivityType.groupCreated:
         return 'Group Created';
+      case ActivityType.settlement: // ADD this case
+        return 'Settlement';
       case ActivityType.other:
         return 'Activity';
     }
@@ -93,6 +96,8 @@ extension ActivityTypeExtension on ActivityType {
         return '👤';
       case ActivityType.groupCreated:
         return '🎉';
+      case ActivityType.settlement: // ADD this case
+        return '💰';
       case ActivityType.other:
         return 'ℹ️';
     }

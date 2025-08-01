@@ -2,14 +2,15 @@
 class SettlementModel {
   final String id;
   final String groupId;
-  final String fromUserId;  // Who paid
-  final String toUserId;    // Who received
+  final String fromUserId;  // Who paid the debt
+  final String toUserId;    // Who received the payment
   final double amount;
   final DateTime settledAt;
   final String? notes;
-  final String? transactionId; // Optional: bank transfer reference
+  final String? transactionId;
   final SettlementMethod method;
-  final List<String> settledExpenseIds; // NEW: Track which expenses are settled
+
+  // REMOVED: settledExpenseIds - we don't track individual expenses anymore
 
   SettlementModel({
     required this.id,
@@ -21,10 +22,8 @@ class SettlementModel {
     this.notes,
     this.transactionId,
     this.method = SettlementMethod.cash,
-    this.settledExpenseIds = const [], // NEW: Default to empty list
   });
 
-  // Convert to Map for Firebase
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -36,11 +35,10 @@ class SettlementModel {
       'notes': notes,
       'transactionId': transactionId,
       'method': method.name,
-      'settledExpenseIds': settledExpenseIds, // NEW: Include in serialization
+      // REMOVED: 'settledExpenseIds' field
     };
   }
 
-  // Create from Firebase Map
   factory SettlementModel.fromMap(Map<String, dynamic> map) {
     return SettlementModel(
       id: map['id'] ?? '',
@@ -55,11 +53,10 @@ class SettlementModel {
             (e) => e.name == map['method'],
         orElse: () => SettlementMethod.cash,
       ),
-      settledExpenseIds: List<String>.from(map['settledExpenseIds'] ?? []), // NEW: Parse expense IDs
+      // REMOVED: settledExpenseIds parsing
     );
   }
 
-  // Copy with modifications
   SettlementModel copyWith({
     String? id,
     String? groupId,
@@ -70,7 +67,6 @@ class SettlementModel {
     String? notes,
     String? transactionId,
     SettlementMethod? method,
-    List<String>? settledExpenseIds, // NEW: Allow copying with different expense IDs
   }) {
     return SettlementModel(
       id: id ?? this.id,
@@ -82,13 +78,12 @@ class SettlementModel {
       notes: notes ?? this.notes,
       transactionId: transactionId ?? this.transactionId,
       method: method ?? this.method,
-      settledExpenseIds: settledExpenseIds ?? this.settledExpenseIds,
     );
   }
 
   @override
   String toString() {
-    return 'SettlementModel(id: $id, from: $fromUserId, to: $toUserId, amount: €$amount, expenses: ${settledExpenseIds.length})';
+    return 'SettlementModel(id: $id, from: $fromUserId, to: $toUserId, amount: €$amount)';
   }
 }
 

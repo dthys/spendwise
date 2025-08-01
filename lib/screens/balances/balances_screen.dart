@@ -1,6 +1,9 @@
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../../services/auth_service.dart';
 import '../../services/banking_service.dart';
 import '../../services/database_service.dart';
 import '../../models/user_model.dart';
@@ -24,6 +27,7 @@ class BalancesScreen extends StatefulWidget {
 
 class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAliveClientMixin {
   final DatabaseService _databaseService = DatabaseService();
+  final Set<String> _expandedMembers = <String>{};
 
   @override
   bool get wantKeepAlive => true;
@@ -32,254 +36,28 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
   Map<String, double> _calculateCurrentBalances(
       List<ExpenseModel> expenses,
       List<SettlementModel> settlements,
+      String? viewingUserId,
       ) {
-    if (kDebugMode) {
-      print('🧮 === CALCULATING BALANCES WITH SETTLEMENTS ===');
-    }
-    if (kDebugMode) {
-      print('📝 Total expenses: ${expenses.length}');
-    }
-    if (kDebugMode) {
-      print('💰 Total settlements: ${settlements.length}');
-    }
-
-    // Debug: Print all settlements
-    for (var settlement in settlements) {
-      if (kDebugMode) {
-        print('🔍 Settlement: ${settlement.fromUserId} → ${settlement.toUserId} = €${settlement.amount}');
-      }
-      if (kDebugMode) {
-        print('   Settled expenses: ${settlement.settledExpenseIds}');
-      }
-    }
-
-    Map<String, double> balances = {};
-
-    for (ExpenseModel expense in expenses) {
-      if (kDebugMode) {
-        print('\n📋 Processing expense ${expense.id}: €${expense.amount} paid by ${expense.paidBy}');
-      }
-
-      // Check if this expense has any settlements
-      List<SettlementModel> expenseSettlements = settlements
-          .where((s) => s.settledExpenseIds.contains(expense.id))
-          .toList();
-
-      if (kDebugMode) {
-        print('   Found ${expenseSettlements.length} settlements for this expense');
-      }
-
-      if (expenseSettlements.isEmpty) {
-        if (kDebugMode) {
-          print('   ➡️ No settlements - calculating normally');
-        }
-        // No settlements for this expense - calculate normally
-        _addExpenseToBalances(balances, expense);
-      } else {
-        if (kDebugMode) {
-          print('   ➡️ Has settlements - calculating unsettled portions only');
-        }
-        // This expense has settlements - calculate only unsettled portions
-        _addUnsettledExpenseToBalances(balances, expense, expenseSettlements);
-      }
-
-      if (kDebugMode) {
-        print('   Current balances after this expense: $balances');
-      }
-    }
-
-    if (kDebugMode) {
-      print('📊 Final balances: $balances');
-    }
-    return balances;
+    return _databaseService.calculateUserSpecificBalances(expenses, settlements, viewingUserId);
   }
 
-  void _addExpenseToBalances(Map<String, double> balances, ExpenseModel expense) {
-    // Payer gets credit
-    balances[expense.paidBy] = (balances[expense.paidBy] ?? 0) + expense.amount;
-
-    // Split participants owe their share
-    for (String participant in expense.splitBetween) {
-      double amountOwed = expense.getAmountOwedBy(participant);
-      balances[participant] = (balances[participant] ?? 0) - amountOwed;
-    }
-  }
-
-  void _addUnsettledExpenseToBalances(
-      Map<String, double> balances,
-      ExpenseModel expense,
-      List<SettlementModel> expenseSettlements,
-      ) {
-    if (kDebugMode) {
-      print('    🔍 Checking unsettled portions for expense ${expense.id}');
-    }
-
-    // Get all user pairs that have settled this expense
-    Set<String> settledUserPairs = expenseSettlements
-        .map((s) => '${s.fromUserId}-${s.toUserId}')
-        .toSet();
-
-    // Add reverse pairs (settlements work both ways)
-    List<String> reversePairs = expenseSettlements
-        .map((s) => '${s.toUserId}-${s.fromUserId}')
-        .toList();
-    settledUserPairs.addAll(reversePairs);
-
-    if (kDebugMode) {
-      print('    📋 Settled user pairs: $settledUserPairs');
-    }
-
-    String payer = expense.paidBy;
-    if (kDebugMode) {
-      print('    💳 Payer: $payer');
-    }
-    if (kDebugMode) {
-      print('    👥 Split between: ${expense.splitBetween}');
-    }
-
-    // For each participant in the expense
-    for (String participant in expense.splitBetween) {
-      double participantOwes = expense.getAmountOwedBy(participant);
-      if (kDebugMode) {
-        print('    🧮 $participant owes €${participantOwes.toStringAsFixed(2)}');
-      }
-
-      if (participant == payer) {
-        // Payer doesn't owe themselves
-        if (kDebugMode) {
-          print('    ⚠️ $participant is the payer - skipping');
-        }
-        continue;
-      }
-
-      // Check if this debt has been settled
-      bool isSettled = settledUserPairs.contains('$participant-$payer');
-      if (kDebugMode) {
-        print('    🔍 Checking if $participant-$payer is settled: $isSettled');
-      }
-
-      if (!isSettled) {
-        // This portion is NOT settled - include in balances
-        if (kDebugMode) {
-          print('    ➕ Adding to balances: $payer gets +€${participantOwes.toStringAsFixed(2)}, $participant gets -€${participantOwes.toStringAsFixed(2)}');
-        }
-        balances[payer] = (balances[payer] ?? 0) + participantOwes;
-        balances[participant] = (balances[participant] ?? 0) - participantOwes;
-      } else {
-        if (kDebugMode) {
-          print('    ✅ Settled portion: $participant owes $payer €${participantOwes.toStringAsFixed(2)} for expense ${expense.id}');
-        }
-      }
-    }
-  }
-
-  // Calculate what still needs to be settled
-  List<Settlement> _calculateUnsettledBalances(Map<String, double> currentBalances) {
-    if (kDebugMode) {
-      print('🎯 === CALCULATING UNSETTLED BALANCES ===');
-    }
-
-    List<Settlement> neededSettlements = [];
-
-    // Find debtors and creditors from current balances
-    List<MapEntry<String, double>> debtors = [];
-    List<MapEntry<String, double>> creditors = [];
-
-    currentBalances.forEach((userId, balance) {
-      if (balance < -0.01) {
-        debtors.add(MapEntry(userId, -balance));
-      } else if (balance > 0.01) {
-        creditors.add(MapEntry(userId, balance));
-      }
-    });
-
-    if (debtors.isEmpty || creditors.isEmpty) {
-      if (kDebugMode) {
-        print('✅ No debts remaining');
-      }
-      return neededSettlements;
-    }
-
-    // Sort by amount (largest first)
-    debtors.sort((a, b) => b.value.compareTo(a.value));
-    creditors.sort((a, b) => b.value.compareTo(a.value));
-
-    // Calculate what settlements are needed
-    int i = 0, j = 0;
-    while (i < debtors.length && j < creditors.length) {
-      String debtor = debtors[i].key;
-      String creditor = creditors[j].key;
-      double debtAmount = debtors[i].value;
-      double creditAmount = creditors[j].value;
-
-      double settlementAmount = debtAmount < creditAmount ? debtAmount : creditAmount;
-
-      if (settlementAmount > 0.01) {
-        if (kDebugMode) {
-          print('💡 Settlement needed: $debtor owes $creditor €${settlementAmount.toStringAsFixed(2)}');
-        }
-
-        neededSettlements.add(Settlement(
-          from: debtor,
-          to: creditor,
-          amount: settlementAmount,
-        ));
-      }
-
-      debtors[i] = MapEntry(debtor, debtAmount - settlementAmount);
-      creditors[j] = MapEntry(creditor, creditAmount - settlementAmount);
-
-      if (debtors[i].value < 0.01) i++;
-      if (creditors[j].value < 0.01) j++;
-    }
-
-    if (kDebugMode) {
-      print('🎯 Total unsettled amounts: ${neededSettlements.length}');
-    }
-    return neededSettlements;
-  }
-
-  // Calculate which expenses should be marked as settled
-  List<String> _getExpensesToSettle(
-      String fromUserId,
-      String toUserId,
-      double settlementAmount,
+  // Calculate individual debts between members
+  Map<String, List<IndividualDebt>> _calculateIndividualDebts(
       List<ExpenseModel> expenses,
-      List<SettlementModel> existingSettlements,
+      List<SettlementModel> settlements,
+      String? viewingUserId,
       ) {
-    List<String> expensesToSettle = [];
-    double remainingAmount = settlementAmount;
+    return _databaseService.calculateIndividualDebtsWithSettlements(expenses, viewingUserId);
+  }
 
-    // Get already settled expenses between these users
-    Set<String> alreadySettledExpenseIds = existingSettlements
-        .where((s) =>
-    (s.fromUserId == fromUserId && s.toUserId == toUserId) ||
-        (s.fromUserId == toUserId && s.toUserId == fromUserId))
-        .expand((s) => s.settledExpenseIds)
-        .toSet();
-
-    // Find expenses where fromUser owes toUser
-    for (ExpenseModel expense in expenses) {
-      if (alreadySettledExpenseIds.contains(expense.id)) {
-        continue; // Skip already settled expenses
-      }
-
-      // Check if fromUser owes toUser in this expense
-      if (expense.paidBy == toUserId && expense.splitBetween.contains(fromUserId)) {
-        double amountOwed = expense.getAmountOwedBy(fromUserId);
-
-        if (remainingAmount >= amountOwed) {
-          expensesToSettle.add(expense.id);
-          remainingAmount -= amountOwed;
-
-          if (remainingAmount < 0.01) {
-            break; // We've covered the settlement amount
-          }
-        }
-      }
-    }
-
-    return expensesToSettle;
+  // Calculate who owes money TO a specific member (for creditors to see their debtors)
+  List<IndividualDebt> _calculateDebtsOwedToMember(
+      String memberId,
+      List<ExpenseModel> expenses,
+      List<SettlementModel> settlements,
+      String? viewingUserId,
+      ) {
+    return _databaseService.calculateDebtsOwedToMember(memberId, expenses, viewingUserId);
   }
 
   UserModel _getUserById(String userId) {
@@ -299,16 +77,33 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
     return NumberFormatter.formatCurrency(amount.abs());
   }
 
+  // Sort members to put current user first
+  List<UserModel> _getSortedMembers(String? currentUserId) {
+    List<UserModel> sortedMembers = List.from(widget.members);
+
+    if (currentUserId != null) {
+      sortedMembers.sort((a, b) {
+        if (a.id == currentUserId) return -1;
+        if (b.id == currentUserId) return 1;
+        return a.name.compareTo(b.name);
+      });
+    } else {
+      sortedMembers.sort((a, b) => a.name.compareTo(b.name));
+    }
+
+    return sortedMembers;
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.uid;
 
     return WillPopScope(
       onWillPop: () async {
-        // Always return 'refresh' when popping to trigger balance update in parent
         Navigator.pop(context, 'refresh');
         return false;
       },
@@ -341,18 +136,24 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                // Calculate current balances using the NEW logic
-                Map<String, double> currentBalances = {};
-                List<Settlement> unsettledAmounts = [];
+                Map<String, double> balances = {};
+                Map<String, List<IndividualDebt>> individualDebts = {};
+                Map<String, List<IndividualDebt>> creditorDebts = {};
 
                 if (expenseSnapshot.hasData) {
-                  List<ExpenseModel> currentExpenses = expenseSnapshot.data!;
+                  List<ExpenseModel> expenses = expenseSnapshot.data!;
                   List<SettlementModel> settlements = settlementSnapshot.data ?? [];
 
-                  // Use the new balance calculation method
-                  currentBalances = _calculateCurrentBalances(currentExpenses, settlements);
-                  unsettledAmounts = _calculateUnsettledBalances(currentBalances);
+                  balances = _calculateCurrentBalances(expenses, settlements, currentUserId);
+                  individualDebts = _calculateIndividualDebts(expenses, settlements, currentUserId);
+
+                  // Calculate debts owed TO each member (for creditors)
+                  for (String memberId in widget.members.map((m) => m.id)) {
+                    creditorDebts[memberId] = _calculateDebtsOwedToMember(memberId, expenses, settlements, currentUserId);
+                  }
                 }
+
+                final sortedMembers = _getSortedMembers(currentUserId);
 
                 return RefreshIndicator(
                   onRefresh: () async {
@@ -390,7 +191,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                 ),
                               ),
                               Text(
-                                'Considering settlements',
+                                'Tap members to see and settle individual debts',
                                 style: TextStyle(
                                   color: colorScheme.onPrimary.withOpacity(0.8),
                                   fontSize: 16,
@@ -402,46 +203,25 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
 
                         const SizedBox(height: 24),
 
-                        // Individual Balances
+                        // Member Cards with Expandable Sections
                         Container(
                           margin: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Card(
-                            color: theme.cardColor,
-                            child: Column(
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.receipt_long, color: theme.primaryColor),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          'Current Balances',
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                            color: colorScheme.onSurface,
-                                          ),
-                                        ),
-                                      ),
-                                      if (settlementSnapshot.hasData && settlementSnapshot.data!.isNotEmpty)
-                                        Chip(
-                                          label: Text('${settlementSnapshot.data!.length} settlements'),
-                                          backgroundColor: Colors.green.shade100,
-                                          labelStyle: TextStyle(
-                                            color: Colors.green.shade700,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                ...widget.members.map((member) {
-                                  double balance = currentBalances[member.id] ?? 0.0;
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 300),
-                                    child: ListTile(
+                          child: Column(
+                            children: sortedMembers.map((member) {
+                              double balance = balances[member.id] ?? 0.0;
+                              List<IndividualDebt> memberOwes = individualDebts[member.id] ?? [];
+                              List<IndividualDebt> memberIsOwed = creditorDebts[member.id] ?? [];
+                              bool isExpanded = _expandedMembers.contains(member.id);
+                              bool isCurrentUser = member.id == currentUserId;
+                              bool hasAnyDebts = memberOwes.isNotEmpty || memberIsOwed.isNotEmpty;
+
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                color: theme.cardColor,
+                                child: Column(
+                                  children: [
+                                    // Main Member Tile
+                                    ListTile(
                                       leading: CircleAvatar(
                                         backgroundColor: balance.abs() < 0.01
                                             ? Colors.grey.shade500
@@ -453,142 +233,356 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                                           style: const TextStyle(color: Colors.white),
                                         ),
                                       ),
-                                      title: Text(
-                                        member.name,
-                                        style: TextStyle(color: colorScheme.onSurface),
+                                      title: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              member.name,
+                                              style: TextStyle(
+                                                color: colorScheme.onSurface,
+                                                fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
+                                              ),
+                                            ),
+                                          ),
+                                          if (isCurrentUser) ...[
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: theme.primaryColor,
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                'YOU',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: colorScheme.onPrimary,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                          ],
+                                        ],
                                       ),
-                                      subtitle: Text(
-                                        balance.abs() < 0.01
-                                            ? 'All settled up'
-                                            : balance > 0
-                                            ? 'Is owed (after settlements)'
-                                            : 'Owes (after settlements)',
-                                        style: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
+                                      subtitle: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              hasAnyDebts
+                                                  ? (balance.abs() < 0.01
+                                                  ? 'Has debts to settle'
+                                                  : balance > 0
+                                                  ? 'Is owed'
+                                                  : 'Owes')
+                                                  : 'All settled up',
+                                              style: TextStyle(
+                                                color: colorScheme.onSurface.withOpacity(0.7),
+                                              ),
+                                            ),
+                                          ),
+                                          if (hasAnyDebts) ...[
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.orange.shade100,
+                                                borderRadius: BorderRadius.circular(10),
+                                              ),
+                                              child: Text(
+                                                '${memberOwes.length + memberIsOwed.length} debt${(memberOwes.length + memberIsOwed.length) == 1 ? '' : 's'}',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: Colors.orange.shade700,
+                                                ),
+                                              ),
+                                            ),
+                                          ] else ...[
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.green.shade100,
+                                                borderRadius: BorderRadius.circular(10),
+                                              ),
+                                              child: Text(
+                                                'SETTLED',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.green.shade700,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
                                       ),
-                                      trailing: Text(
-                                        balance.abs() < 0.01 ? NumberFormatter.formatCurrency(0) : _formatAmount(balance),
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: balance.abs() < 0.01
-                                              ? Colors.grey.shade600
-                                              : balance > 0
-                                              ? Colors.green.shade600
-                                              : Colors.red.shade600,
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            hasAnyDebts
+                                                ? _formatAmount(balance)
+                                                : NumberFormatter.formatCurrency(0),
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: !hasAnyDebts
+                                                  ? Colors.green.shade600  // Green for settled
+                                                  : balance.abs() < 0.01
+                                                  ? Colors.grey.shade600
+                                                  : balance > 0
+                                                  ? Colors.green.shade600
+                                                  : Colors.red.shade600,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Icon(
+                                            hasAnyDebts
+                                                ? (isExpanded
+                                                ? Icons.keyboard_arrow_up
+                                                : Icons.keyboard_arrow_down)
+                                                : Icons.check_circle,
+                                            color: hasAnyDebts
+                                                ? colorScheme.onSurface.withOpacity(0.6)
+                                                : Colors.green.shade600,
+                                          ),
+                                        ],
+                                      ),
+                                      onTap: () {
+                                        setState(() {
+                                          if (isExpanded) {
+                                            _expandedMembers.remove(member.id);
+                                          } else {
+                                            _expandedMembers.add(member.id);
+                                          }
+                                        });
+                                      },
+                                    ),
+
+// Expanded Section - Individual Debts
+                                    AnimatedCrossFade(
+                                      firstChild: const SizedBox.shrink(),
+                                      secondChild: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Divider(color: colorScheme.onSurface.withOpacity(0.1)),
+
+                                            // Show debts this member owes to others
+                                            if (memberOwes.isNotEmpty) ...[
+                                              Padding(
+                                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                                child: Text(
+                                                  '${member.name} owes:',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: colorScheme.onSurface.withOpacity(0.8),
+                                                  ),
+                                                ),
+                                              ),
+                                              ...memberOwes.map((debt) {
+                                                UserModel creditor = _getUserById(debt.creditorId);
+                                                return GestureDetector(
+                                                  onTap: () {
+                                                    _showSettleDialog(
+                                                      SimplifiedDebt(
+                                                        fromUserId: debt.debtorId,
+                                                        toUserId: debt.creditorId,
+                                                        amount: debt.amount,
+                                                        groupId: widget.groupId, // ADD this line
+                                                      ),
+                                                      member,
+                                                      creditor,
+                                                    );
+                                                  },
+                                                  child: Container(
+                                                    margin: const EdgeInsets.only(bottom: 8),
+                                                    padding: const EdgeInsets.all(12),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.red.shade50,
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      border: Border.all(
+                                                        color: Colors.red.shade200,
+                                                        width: 1,
+                                                      ),
+                                                    ),
+                                                    child: Row(
+                                                      children: [
+                                                        CircleAvatar(
+                                                          radius: 16,
+                                                          backgroundColor: Colors.red.shade500,
+                                                          child: Text(
+                                                            creditor.name.substring(0, 1).toUpperCase(),
+                                                            style: const TextStyle(
+                                                              color: Colors.white,
+                                                              fontSize: 12,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 12),
+                                                        Expanded(
+                                                          child: Column(
+                                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                                            children: [
+                                                              Text(
+                                                                creditor.name,
+                                                                style: TextStyle(
+                                                                  fontWeight: FontWeight.w500,
+                                                                  color: Colors.red.shade800,
+                                                                ),
+                                                              ),
+                                                              Text(
+                                                                'Tap to settle debt',
+                                                                style: TextStyle(
+                                                                  fontSize: 12,
+                                                                  color: Colors.red.shade600,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                                          children: [
+                                                            Text(
+                                                              _formatAmount(debt.amount),
+                                                              style: TextStyle(
+                                                                fontSize: 14,
+                                                                fontWeight: FontWeight.bold,
+                                                                color: Colors.red.shade800,
+                                                              ),
+                                                            ),
+                                                            Icon(
+                                                              Icons.touch_app,
+                                                              size: 14,
+                                                              color: Colors.red.shade600,
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                );
+                                              }),
+                                            ],
+
+                                            // Show debts others owe to this member
+                                            if (memberIsOwed.isNotEmpty) ...[
+                                              if (memberOwes.isNotEmpty) const SizedBox(height: 16),
+                                              Padding(
+                                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                                child: Text(
+                                                  'Others owe ${member.name}:',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: colorScheme.onSurface.withOpacity(0.8),
+                                                  ),
+                                                ),
+                                              ),
+                                              ...memberIsOwed.map((debt) {
+                                                UserModel debtor = _getUserById(debt.debtorId);
+                                                return GestureDetector(
+                                                  onTap: () {
+                                                    _showSettleDialog(
+                                                      SimplifiedDebt(
+                                                        fromUserId: debt.debtorId,
+                                                        toUserId: debt.creditorId,
+                                                        amount: debt.amount,
+                                                        groupId: widget.groupId, // ADD this line
+                                                      ),
+                                                      debtor,
+                                                      member,
+                                                    );
+                                                  },
+                                                  child: Container(
+                                                    margin: const EdgeInsets.only(bottom: 8),
+                                                    padding: const EdgeInsets.all(12),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.green.shade50,
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      border: Border.all(
+                                                        color: Colors.green.shade200,
+                                                        width: 1,
+                                                      ),
+                                                    ),
+                                                    child: Row(
+                                                      children: [
+                                                        CircleAvatar(
+                                                          radius: 16,
+                                                          backgroundColor: Colors.green.shade500,
+                                                          child: Text(
+                                                            debtor.name.substring(0, 1).toUpperCase(),
+                                                            style: const TextStyle(
+                                                              color: Colors.white,
+                                                              fontSize: 12,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 12),
+                                                        Expanded(
+                                                          child: Column(
+                                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                                            children: [
+                                                              Text(
+                                                                debtor.name,
+                                                                style: TextStyle(
+                                                                  fontWeight: FontWeight.w500,
+                                                                  color: Colors.green.shade800,
+                                                                ),
+                                                              ),
+                                                              Text(
+                                                                'Tap to mark as settled',
+                                                                style: TextStyle(
+                                                                  fontSize: 12,
+                                                                  color: Colors.green.shade600,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                                          children: [
+                                                            Text(
+                                                              _formatAmount(debt.amount),
+                                                              style: TextStyle(
+                                                                fontSize: 14,
+                                                                fontWeight: FontWeight.bold,
+                                                                color: Colors.green.shade800,
+                                                              ),
+                                                            ),
+                                                            Icon(
+                                                              Icons.touch_app,
+                                                              size: 14,
+                                                              color: Colors.green.shade600,
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                );
+                                              }),
+                                            ],
+                                          ],
                                         ),
                                       ),
+                                      crossFadeState: isExpanded && hasAnyDebts
+                                          ? CrossFadeState.showSecond
+                                          : CrossFadeState.showFirst,
+                                      duration: const Duration(milliseconds: 300),
                                     ),
-                                  );
-                                }),
-                              ],
-                            ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
                           ),
                         ),
 
-                        const SizedBox(height: 16),
-
-                        // Unsettled amounts (what still needs to be settled)
-                        if (unsettledAmounts.isNotEmpty) ...[
-                          Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Card(
-                              color: theme.cardColor,
-                              child: Column(
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.swap_horiz, color: theme.primaryColor),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            'Still Need to Settle',
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: colorScheme.onSurface,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  ...unsettledAmounts.map((settlement) {
-                                    UserModel fromUser = _getUserById(settlement.from);
-                                    UserModel toUser = _getUserById(settlement.to);
-
-                                    return Container(
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          bottom: BorderSide(
-                                            color: colorScheme.onSurface.withOpacity(0.1),
-                                            width: 1,
-                                          ),
-                                        ),
-                                      ),
-                                      child: ListTile(
-                                        leading: Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: Colors.orange.shade500,
-                                            borderRadius: BorderRadius.circular(20),
-                                          ),
-                                          child: const Icon(Icons.arrow_forward, color: Colors.white),
-                                        ),
-                                        title: RichText(
-                                          text: TextSpan(
-                                            style: TextStyle(color: colorScheme.onSurface),
-                                            children: [
-                                              TextSpan(
-                                                text: fromUser.name,
-                                                style: const TextStyle(fontWeight: FontWeight.bold),
-                                              ),
-                                              const TextSpan(text: ' pays '),
-                                              TextSpan(
-                                                text: toUser.name,
-                                                style: const TextStyle(fontWeight: FontWeight.bold),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        subtitle: Text(
-                                          'Tap to settle this amount',
-                                          style: TextStyle(
-                                            color: colorScheme.onSurface.withOpacity(0.6),
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                        trailing: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          crossAxisAlignment: CrossAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              _formatAmount(settlement.amount),
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.green.shade600,
-                                              ),
-                                            ),
-                                            Icon(
-                                              Icons.touch_app,
-                                              size: 16,
-                                              color: colorScheme.onSurface.withOpacity(0.4),
-                                            ),
-                                          ],
-                                        ),
-                                        onTap: () {
-                                          _showSettleDialog(settlement, fromUser, toUser);
-                                        },
-                                      ),
-                                    );
-                                  }),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ] else ...[
+                        // All Settled Message
+                        if (balances.values.every((balance) => balance.abs() < 0.01)) ...[
+                          const SizedBox(height: 24),
                           Container(
                             margin: const EdgeInsets.symmetric(horizontal: 16),
                             child: Card(
@@ -639,7 +633,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
     );
   }
 
-  void _showSettleDialog(Settlement settlement, UserModel fromUser, UserModel toUser) {
+  void _showSettleDialog(SimplifiedDebt debt, UserModel fromUser, UserModel toUser) {
     SettlementMethod selectedMethod = SettlementMethod.bankTransfer;
     String notes = '';
 
@@ -687,7 +681,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _formatAmount(settlement.amount),
+                        _formatAmount(debt.amount),
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -810,11 +804,10 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                     child: ElevatedButton.icon(
                       onPressed: () async {
                         try {
-                          // Use the new smart banking method
                           bool success = await BankingService.openBankingAppSmart(
                             recipientIBAN: toUser.bankAccount!,
                             recipientName: toUser.name,
-                            amount: settlement.amount,
+                            amount: debt.amount,
                             description: 'Settlement: ${fromUser.name} to ${toUser.name}',
                           );
 
@@ -889,7 +882,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
             ),
             ElevatedButton(
               onPressed: () => _confirmSettlement(
-                settlement,
+                debt,
                 fromUser,
                 toUser,
                 selectedMethod,
@@ -907,7 +900,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
     );
   }
 
-// Helper method for showing overlay notifications
+  // Helper method for showing overlay notifications
   void _showOverlayNotification(BuildContext context, String message, Color backgroundColor, IconData icon) {
     final overlay = Overlay.of(context);
     late OverlayEntry overlayEntry;
@@ -960,7 +953,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
 
   // Settlement confirmation with expense tracking
   Future<void> _confirmSettlement(
-      Settlement settlement,
+      SimplifiedDebt debt,
       UserModel fromUser,
       UserModel toUser,
       SettlementMethod method,
@@ -970,47 +963,30 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
       Navigator.pop(context);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recording settlement...')),
+        const SnackBar(content: Text('Processing settlement...')),
       );
 
-      // Get current expenses and settlements
-      List<ExpenseModel> expenses = await _databaseService.streamGroupExpenses(widget.groupId).first;
-      List<SettlementModel> existingSettlements = await _databaseService.streamGroupSettlements(widget.groupId).first;
-
-      // Calculate which expenses should be marked as settled
-      List<String> expensesToSettle = _getExpensesToSettle(
-        settlement.from,
-        settlement.to,
-        settlement.amount,
-        expenses,
-        existingSettlements,
+      // Use the new settlement method with expense tracking
+      await _databaseService.confirmSettlementWithExpenseTracking(
+        debt,
+        fromUser,
+        toUser,
+        method,
+        notes,
       );
-
-      // Create settlement record with expense tracking
-      SettlementModel settlementModel = SettlementModel(
-        id: _databaseService.generateSettlementId(),
-        groupId: widget.groupId,
-        fromUserId: settlement.from,
-        toUserId: settlement.to,
-        amount: settlement.amount,
-        settledAt: DateTime.now(),
-        method: method,
-        notes: notes,
-        settledExpenseIds: expensesToSettle, // Track which expenses are settled
-      );
-
-      await _databaseService.createSettlement(settlementModel);
 
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Settlement recorded! ${expensesToSettle.length} expenses settled.'),
+          content: Text('Settlement recorded and expenses marked as settled!'),
           backgroundColor: Colors.green.shade600,
         ),
       );
 
-      // Important: Pop with 'refresh' to trigger balance update in GroupDetailScreen
-      Navigator.pop(context, 'refresh');
+      // Collapse the expanded section after settlement
+      setState(() {
+        _expandedMembers.remove(debt.fromUserId);
+      });
 
     } catch (e) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -1019,7 +995,6 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
       );
     }
   }
-
   void _showSettlementHistory() {
     showModalBottomSheet(
       context: context,
@@ -1069,7 +1044,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                           const SizedBox(height: 16),
                           Text('No settlements yet', style: TextStyle(fontSize: 18, color: Colors.grey.shade600)),
                           const SizedBox(height: 8),
-                          Text('Settlements track which expenses are settled', style: TextStyle(color: Colors.grey.shade500)),
+                          Text('Settlements will appear here when debts are settled', style: TextStyle(color: Colors.grey.shade500)),
                         ],
                       ),
                     );
@@ -1098,10 +1073,14 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('${settlement.method.displayName} • ${_formatDate(settlement.settledAt)}'),
-                              if (settlement.settledExpenseIds.isNotEmpty)
+                              if (settlement.notes != null && settlement.notes!.isNotEmpty)
                                 Text(
-                                  '${settlement.settledExpenseIds.length} expenses settled',
-                                  style: TextStyle(fontSize: 12, color: Colors.green.shade600),
+                                  settlement.notes!,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                    fontStyle: FontStyle.italic,
+                                  ),
                                 ),
                             ],
                           ),
@@ -1128,10 +1107,21 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
   }
 }
 
-class Settlement {
-  final String from;
-  final String to;
+// Helper classes
+class IndividualDebt {
+  final String debtorId;
+  final String creditorId;
   final double amount;
 
-  Settlement({required this.from, required this.to, required this.amount});
+  IndividualDebt({
+    required this.debtorId,
+    required this.creditorId,
+    required this.amount,
+  });
+
+  @override
+  String toString() {
+    return 'IndividualDebt(debtor: $debtorId, creditor: $creditorId, amount: €${amount.toStringAsFixed(2)})';
+  }
 }
+
