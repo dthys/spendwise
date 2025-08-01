@@ -22,17 +22,134 @@ class _GroupsScreenState extends State<GroupsScreen> {
   final _memberEmailController = TextEditingController();
 
   final List<UserModel> _selectedMembers = [];
+  List<UserModel> _searchResults = [];     // ADD THIS
+  bool _isSearching = false;               // ADD THIS
+  bool _showSuggestions = false;           // ADD THIS
   bool _isLoading = false;
   String _selectedCurrency = 'EUR';
 
   final List<String> _currencies = ['EUR', 'USD', 'GBP', 'CHF', 'CAD'];
 
   @override
+  void initState() {
+    super.initState();
+    _memberEmailController.addListener(_onSearchChanged);
+  }
+
+  @override
   void dispose() {
+    _memberEmailController.removeListener(_onSearchChanged);
     _groupNameController.dispose();
     _groupDescriptionController.dispose();
     _memberEmailController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final query = _memberEmailController.text.trim();
+
+    if (query.isEmpty) {
+      setState(() {
+        _showSuggestions = false;
+        _searchResults = [];
+      });
+      return;
+    }
+
+    if (query.length >= 2) { // Start searching after 2 characters
+      _searchPreviousMembers(query);
+    }
+  }
+
+  Future<void> _searchPreviousMembers(String query) async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    if (authService.currentUser == null) return;
+
+    setState(() => _isSearching = true);
+
+    try {
+      List<UserModel> results = await _databaseService.searchPreviousMembers(
+          authService.currentUser!.uid,
+          query
+      );
+
+      setState(() {
+        _searchResults = results;
+        _showSuggestions = results.isNotEmpty;
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error searching: $e');
+      }
+    } finally {
+      setState(() => _isSearching = false);
+    }
+  }
+
+  void _selectSuggestedMember(UserModel member) {
+    if (!_selectedMembers.any((selected) => selected.id == member.id)) {
+      setState(() {
+        _selectedMembers.add(member);
+        _memberEmailController.clear();
+        _showSuggestions = false;
+        _searchResults = [];
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${member.name} added to group!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  Widget _buildSearchSuggestions() {
+    if (!_showSuggestions || _searchResults.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade200,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Icon(Icons.history, size: 16, color: Colors.grey.shade600),
+                const SizedBox(width: 8),
+                Text('Previous group members', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              ],
+            ),
+          ),
+          ...(_searchResults.map((member) => ListTile(
+            dense: true,
+            leading: CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.blue.shade500,
+              child: Text(member.name.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.white)),
+            ),
+            title: Text(member.name),
+            subtitle: Text(member.email),
+            trailing: const Icon(Icons.add_circle_outline, size: 20),
+            onTap: () => _selectSuggestedMember(member),
+          ))),
+        ],
+      ),
+    );
   }
 
   // Voeg toe in _GroupsScreenState class
@@ -360,46 +477,49 @@ class _GroupsScreenState extends State<GroupsScreen> {
               const SizedBox(height: 16),
 
               // Add Member Input
-              Row(
+              Column(
                 children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _memberEmailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        labelText: 'Friend\'s Email',
-                        hintText: 'Enter email address',
-                        prefixIcon: const Icon(Icons.email),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _memberEmailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: InputDecoration(
+                            labelText: 'Friend\'s Name or Email',
+                            hintText: 'Start typing...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _isSearching
+                                ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                                : null,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
+                          ),
                         ),
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _addMemberByEmail,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade500,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+                            : const Icon(Icons.add),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _addMemberByEmail,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade500,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                        : const Icon(Icons.add),
-                  ),
+
+                  // ADD THIS LINE:
+                  _buildSearchSuggestions(),
                 ],
               ),
 

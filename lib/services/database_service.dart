@@ -1916,6 +1916,50 @@ class DatabaseService {
     return debts;
   }
 
+  Future<List<UserModel>> searchPreviousMembers(String userId, String query) async {
+    try {
+      if (query.trim().isEmpty) return [];
+
+      // Get all groups where user is a member
+      List<GroupModel> userGroups = await getUserGroups(userId);
+
+      // Collect all unique member IDs from all groups
+      Set<String> allMemberIds = {};
+      for (GroupModel group in userGroups) {
+        allMemberIds.addAll(group.memberIds);
+      }
+
+      // Remove current user from the set
+      allMemberIds.remove(userId);
+
+      // Fetch user details for all previous members
+      List<UserModel> previousMembers = [];
+      for (String memberId in allMemberIds) {
+        UserModel? member = await getUser(memberId);
+        if (member != null) {
+          previousMembers.add(member);
+        }
+      }
+
+      // Filter by query (name or email)
+      String lowercaseQuery = query.toLowerCase();
+      List<UserModel> filteredMembers = previousMembers.where((member) {
+        return member.name.toLowerCase().contains(lowercaseQuery) ||
+            member.email.toLowerCase().contains(lowercaseQuery);
+      }).toList();
+
+      // Sort by relevance
+      filteredMembers.sort((a, b) => a.name.compareTo(b.name));
+
+      return filteredMembers.take(5).toList(); // Return max 5 results
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error searching previous members: $e');
+      }
+      return [];
+    }
+  }
+
   // Get user's total balance across all groups
   Future<double> getUserTotalBalance(String userId) async {
     try {
