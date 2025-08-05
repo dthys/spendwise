@@ -6,6 +6,7 @@ import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../models/group_model.dart';
 import '../../models/user_model.dart';
+import '../../dialogs/join_group_dialog.dart'; // ADD THIS IMPORT
 
 class GroupsScreen extends StatefulWidget {
   const GroupsScreen({super.key});
@@ -22,9 +23,9 @@ class _GroupsScreenState extends State<GroupsScreen> {
   final _memberEmailController = TextEditingController();
 
   final List<UserModel> _selectedMembers = [];
-  List<UserModel> _searchResults = [];     // ADD THIS
-  bool _isSearching = false;               // ADD THIS
-  bool _showSuggestions = false;           // ADD THIS
+  List<UserModel> _searchResults = [];
+  bool _isSearching = false;
+  bool _showSuggestions = false;
   bool _isLoading = false;
   String _selectedCurrency = 'EUR';
 
@@ -56,7 +57,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
       return;
     }
 
-    if (query.length >= 2) { // Start searching after 2 characters
+    if (query.length >= 2) {
       _searchPreviousMembers(query);
     }
   }
@@ -152,7 +153,14 @@ class _GroupsScreenState extends State<GroupsScreen> {
     );
   }
 
-  // Voeg toe in _GroupsScreenState class
+  // NEW: Show join group dialog
+  Future<void> _showJoinGroupDialog() async {
+    final result = await JoinGroupDialog.showJoinGroupDialog(context);
+    if (result != null) {
+      // Navigate to the joined group or refresh the screen
+      Navigator.pop(context, 'refresh');
+    }
+  }
 
   Future<void> _addMemberByEmail() async {
     if (_memberEmailController.text.trim().isEmpty) return;
@@ -168,35 +176,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
         print('Search email: "$searchEmail"');
       }
 
-      if (kDebugMode) {
-        print('=== FIRESTORE DEBUG ===');
-      }
-      if (kDebugMode) {
-        print('Project ID: ${FirebaseFirestore.instance.app.options.projectId}');
-      }
-      if (kDebugMode) {
-        print('Checking collection: users');
-      }
-
-      var snapshot = await FirebaseFirestore.instance.collection('users').get();
-      if (kDebugMode) {
-        print('Documents found in users collection: ${snapshot.docs.length}');
-      }
-
-      for (var doc in snapshot.docs) {
-        if (kDebugMode) {
-          print('Doc ID: ${doc.id}');
-        }
-        if (kDebugMode) {
-          print('Doc data: ${doc.data()}');
-        }
-      }
-
-// Check if collection exists at all
-      if (kDebugMode) {
-        print('Alternative check completed');
-      }
-
       List<UserModel> users = await _databaseService.searchUsersByEmail(searchEmail);
 
       if (kDebugMode) {
@@ -209,7 +188,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
           print('Found user: ${user.name} (${user.email})');
         }
 
-        // Check if user is already added
         if (!_selectedMembers.any((member) => member.id == user.id)) {
           setState(() {
             _selectedMembers.add(user);
@@ -235,18 +213,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
           print('No users found for email: $searchEmail');
         }
 
-        // Check what emails actually exist in Firestore
-        if (kDebugMode) {
-          print('=== CHECKING ALL EMAILS IN FIRESTORE ===');
-        }
-        var allUsers = await FirebaseFirestore.instance.collection('users').get();
-        for (var doc in allUsers.docs) {
-          var data = doc.data();
-          if (kDebugMode) {
-            print('Firestore user: ${data['email']} (name: ${data['name']})');
-          }
-        }
-
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('No user found with this email'),
@@ -268,6 +234,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
       setState(() => _isLoading = false);
     }
   }
+
   Future<void> _createGroup() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -277,14 +244,13 @@ class _GroupsScreenState extends State<GroupsScreen> {
     try {
       setState(() => _isLoading = true);
 
-      // Create group
       final group = GroupModel(
-        id: '', // Will be set by Firebase
+        id: '',
         name: _groupNameController.text.trim(),
         description: _groupDescriptionController.text.trim().isEmpty
             ? null
             : _groupDescriptionController.text.trim(),
-        memberIds: [authService.currentUser!.uid], // Creator is automatically a member
+        memberIds: [authService.currentUser!.uid],
         createdBy: authService.currentUser!.uid,
         createdAt: DateTime.now(),
         currency: _selectedCurrency,
@@ -292,7 +258,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
       String groupId = await _databaseService.createGroup(group);
 
-      // Add selected members to group
       for (UserModel member in _selectedMembers) {
         await _databaseService.addUserToGroup(groupId, member.id);
       }
@@ -304,7 +269,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
         ),
       );
 
-      Navigator.pop(context);
+      Navigator.pop(context, 'refresh');
 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -318,44 +283,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
     }
   }
 
-  Future<void> _debugCheckUsers() async {
-    try {
-      if (kDebugMode) {
-        print('=== DEBUG: Checking current user ===');
-      }
-      final authService = Provider.of<AuthService>(context, listen: false);
-      if (authService.currentUser != null) {
-        if (kDebugMode) {
-          print('Current auth user: ${authService.currentUser!.email}');
-        }
-
-        UserModel? currentUser = await _databaseService.getUser(authService.currentUser!.uid);
-        if (kDebugMode) {
-          print('Current user in Firestore: $currentUser');
-        }
-      }
-
-      if (kDebugMode) {
-        print('=== DEBUG: Checking all users in Firestore ===');
-      }
-      // Let's get all users to see what's in Firestore
-      var allUsers = await FirebaseFirestore.instance.collection('users').get();
-      if (kDebugMode) {
-        print('Total users in Firestore: ${allUsers.docs.length}');
-      }
-
-      for (var doc in allUsers.docs) {
-        if (kDebugMode) {
-          print('User doc: ${doc.data()}');
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Debug error: $e');
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -366,9 +293,11 @@ class _GroupsScreenState extends State<GroupsScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.bug_report),
-            onPressed: _debugCheckUsers,
+          // NEW: Join group button
+          TextButton.icon(
+            onPressed: _showJoinGroupDialog,
+            icon: const Icon(Icons.group_add, color: Colors.white),
+            label: const Text('Join', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -517,8 +446,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
                       ),
                     ],
                   ),
-
-                  // ADD THIS LINE:
                   _buildSearchSuggestions(),
                 ],
               ),
@@ -560,7 +487,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 const SizedBox(height: 16),
               ],
 
-              // Info Card
+              // NEW: Updated Info Card with invite code information
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -568,16 +495,58 @@ class _GroupsScreenState extends State<GroupsScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.blue.shade200),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info, color: Colors.blue.shade600),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'You can add more members later. Only registered Spendwise users can be added.',
-                        style: TextStyle(
-                          color: Colors.blue.shade700,
+                    Row(
+                      children: [
+                        Icon(Icons.info, color: Colors.blue.shade600),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Adding Members',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '• You can add members now by email address\n'
+                          '• Only registered Spendwise users can be added\n'
+                          '• After creating the group, you can generate an invite code in group settings\n'
+                          '• Share the invite code with friends to let them join easily!',
+                      style: TextStyle(
+                        color: Colors.blue.shade700,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.link, color: Colors.green.shade600, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Pro tip: Create the group first, then use invite codes to add members later!',
+                              style: TextStyle(
+                                color: Colors.green.shade700,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

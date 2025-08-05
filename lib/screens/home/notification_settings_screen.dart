@@ -243,6 +243,7 @@ class NotificationSettingsScreen extends StatelessWidget {
     required String subtitle,
     required bool value,
     required Function(bool) onChanged,
+    bool disabled = false, // Add this parameter
   }) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -253,24 +254,25 @@ class NotificationSettingsScreen extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.1),
+            color: (disabled ? Colors.grey : iconColor).withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(
             icon,
-            color: iconColor,
+            color: disabled ? Colors.grey : iconColor,
             size: 24,
           ),
         ),
         title: Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 16,
+            color: disabled ? Colors.grey : null,
           ),
         ),
         subtitle: Text(
-          subtitle,
+          disabled ? 'Feature coming soon' : subtitle,
           style: TextStyle(
             color: Colors.grey.shade600,
             fontSize: 14,
@@ -278,11 +280,19 @@ class NotificationSettingsScreen extends StatelessWidget {
           ),
         ),
         trailing: Switch(
-          value: value,
-          onChanged: onChanged,
+          value: disabled ? false : value,
+          onChanged: disabled ? null : onChanged,
           activeColor: Theme.of(context).primaryColor,
         ),
-        onTap: () => onChanged(!value),
+        onTap: disabled ? () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Feature coming soon!'),
+              backgroundColor: Colors.blue,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } : () => onChanged(!value),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),

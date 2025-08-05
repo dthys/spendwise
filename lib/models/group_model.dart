@@ -1,3 +1,5 @@
+import 'dart:math';
+
 class GroupModel {
   final String id;
   final String name;
@@ -7,6 +9,10 @@ class GroupModel {
   final DateTime createdAt;
   final String currency;
   final String? imageUrl;
+  final String? inviteCode;
+  final bool inviteCodeEnabled;
+  final DateTime? inviteCodeExpiresAt;
+  final int? maxMembers;
 
   GroupModel({
     required this.id,
@@ -17,9 +23,21 @@ class GroupModel {
     required this.createdAt,
     this.currency = 'EUR',
     this.imageUrl,
+    this.inviteCode,
+    this.inviteCodeEnabled = false,
+    this.inviteCodeExpiresAt,
+    this.maxMembers,
   });
 
-  // Convert to Map for Firebase
+  // Generate a random 6-character invite code
+  static String generateInviteCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    Random random = Random();
+    return String.fromCharCodes(Iterable.generate(
+        6, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
+  }
+
+  // Update your existing toMap method
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -29,11 +47,14 @@ class GroupModel {
       'createdBy': createdBy,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'currency': currency,
-      'imageUrl': imageUrl,
+      'inviteCode': inviteCode,
+      'inviteCodeEnabled': inviteCodeEnabled,
+      'inviteCodeExpiresAt': inviteCodeExpiresAt?.millisecondsSinceEpoch,
+      'maxMembers': maxMembers,
     };
   }
 
-  // Create from Firebase Map
+  // Update your existing fromMap method
   factory GroupModel.fromMap(Map<String, dynamic> map) {
     return GroupModel(
       id: map['id'] ?? '',
@@ -43,7 +64,12 @@ class GroupModel {
       createdBy: map['createdBy'] ?? '',
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
       currency: map['currency'] ?? 'EUR',
-      imageUrl: map['imageUrl'],
+      inviteCode: map['inviteCode'],
+      inviteCodeEnabled: map['inviteCodeEnabled'] ?? false,
+      inviteCodeExpiresAt: map['inviteCodeExpiresAt'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['inviteCodeExpiresAt'])
+          : null,
+      maxMembers: map['maxMembers'],
     );
   }
 
@@ -56,7 +82,10 @@ class GroupModel {
     String? createdBy,
     DateTime? createdAt,
     String? currency,
-    String? imageUrl,
+    String? inviteCode,
+    bool? inviteCodeEnabled,
+    DateTime? inviteCodeExpiresAt,
+    int? maxMembers,
   }) {
     return GroupModel(
       id: id ?? this.id,
@@ -66,9 +95,19 @@ class GroupModel {
       createdBy: createdBy ?? this.createdBy,
       createdAt: createdAt ?? this.createdAt,
       currency: currency ?? this.currency,
-      imageUrl: imageUrl ?? this.imageUrl,
+      inviteCode: inviteCode ?? this.inviteCode,
+      inviteCodeEnabled: inviteCodeEnabled ?? this.inviteCodeEnabled,
+      inviteCodeExpiresAt: inviteCodeExpiresAt ?? this.inviteCodeExpiresAt,
+      maxMembers: maxMembers ?? this.maxMembers,
     );
   }
+
+  // Helper methods
+  bool get hasActiveInviteCode => inviteCodeEnabled &&
+      inviteCode != null &&
+      (inviteCodeExpiresAt == null || inviteCodeExpiresAt!.isAfter(DateTime.now()));
+
+  bool get canAcceptNewMembers => maxMembers == null || memberIds.length < maxMembers!;
 
   // Add member to group
   GroupModel addMember(String userId) {
@@ -89,9 +128,8 @@ class GroupModel {
   }
 
   // Check if user is creator
-  bool isCreator(String userId) {
-    return createdBy == userId;
-  }
+  bool isCreator(String userId) => createdBy == userId;
+
 
   @override
   String toString() {

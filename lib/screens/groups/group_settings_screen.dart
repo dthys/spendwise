@@ -7,7 +7,7 @@ import '../../models/group_model.dart';
 import '../../models/user_model.dart';
 import '../../dialogs/bank_account_dialog.dart';
 import '../../services/banking_service.dart';
-
+import '../../dialogs/group_invite_dialog.dart'; // ADD THIS IMPORT
 
 class GroupSettingsScreen extends StatefulWidget {
   final GroupModel group;
@@ -23,20 +23,18 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
   final TextEditingController _emailController = TextEditingController();
 
   List<UserModel> _members = [];
-  UserModel? _currentUser; // Voeg deze toe
+  UserModel? _currentUser;
+  GroupModel? _currentGroup; // ADD THIS to track group updates
   bool _isLoading = true;
   bool _isAddingMember = false;
-
-
 
   @override
   void initState() {
     super.initState();
+    _currentGroup = widget.group; // Initialize with passed group
     _loadMembers();
     _loadCurrentUser();
   }
-
-
 
   @override
   void dispose() {
@@ -48,7 +46,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
       if (authService.currentUser != null) {
-        UserModel? user = await _databaseService.getUser(authService.currentUser!.uid);
+        UserModel? user = await _databaseService.getUser(
+            authService.currentUser!.uid);
         setState(() {
           _currentUser = user;
         });
@@ -60,10 +59,28 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     }
   }
 
+  // NEW: Refresh group data
+  Future<void> _refreshGroupData() async {
+    try {
+      GroupModel? updatedGroup = await _databaseService.getGroup(
+          widget.group.id);
+      if (updatedGroup != null) {
+        setState(() {
+          _currentGroup = updatedGroup;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error refreshing group data: $e');
+      }
+    }
+  }
+
   Future<void> _loadMembers() async {
     try {
       setState(() => _isLoading = true);
-      List<UserModel> members = await _databaseService.getGroupMembers(widget.group.id);
+      List<UserModel> members = await _databaseService.getGroupMembers(
+          widget.group.id);
       setState(() {
         _members = members;
         _isLoading = false;
@@ -75,7 +92,9 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
   }
 
   Future<void> _addMember() async {
-    if (_emailController.text.trim().isEmpty) {
+    if (_emailController.text
+        .trim()
+        .isEmpty) {
       _showError('Please enter an email address');
       return;
     }
@@ -104,6 +123,18 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     }
   }
 
+  // NEW: Show invite dialog
+  Future<void> _showInviteDialog() async {
+    await GroupInviteDialog.showInviteDialog(
+      context,
+      _currentGroup ?? widget.group,
+      _databaseService,
+    );
+
+    // Refresh group data after dialog closes
+    await _refreshGroupData();
+  }
+
   Future<void> _showBankAccountDialog() async {
     String? newIBAN = await BankAccountDialog.showAddBankAccountDialog(
       context,
@@ -120,14 +151,14 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Bankrekening succesvol bijgewerkt'),
+            content: Text('Bank account successfully updated'),
             backgroundColor: Colors.green,
           ),
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Fout bij bijwerken bankrekening'),
+            content: Text('Error updating bank account'),
             backgroundColor: Colors.red,
           ),
         );
@@ -141,7 +172,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
     if (currentUserId == null) return;
 
-    // Check if user can leave and get status
     Map<String, dynamic> canLeave = await _databaseService.canUserLeaveGroup(
       widget.group.id,
       currentUserId,
@@ -154,7 +184,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
       return;
     }
 
-    // Show appropriate dialog based on whether user is last member
     if (isLastMember) {
       _showDeleteGroupDialog();
     } else {
@@ -168,21 +197,24 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
     bool? confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Leave Group'),
-        content: Text('Are you sure you want to leave "${widget.group.name}"?\n\nThis action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder: (context) =>
+          AlertDialog(
+            title: const Text('Leave Group'),
+            content: Text('Are you sure you want to leave "${widget.group
+                .name}"?\n\nThis action cannot be undone.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                child: const Text(
+                    'Leave Group', style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Leave Group', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
     );
 
     if (confirmed == true) {
@@ -209,67 +241,69 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
     bool? confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.warning, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Delete Group'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('You are the last member of "${widget.group.name}".'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red.shade200),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Deleting this group will:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 4),
-                  Text('• Permanently delete all expenses'),
-                  Text('• Remove all settlements'),
-                  Text('• Delete all activity history'),
-                  Text('• This action cannot be undone'),
-                ],
-              ),
+      builder: (context) =>
+          AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.warning, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Delete Group'),
+              ],
             ),
-            const SizedBox(height: 12),
-            const Text('Are you sure you want to delete this group?'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('You are the last member of "${widget.group.name}".'),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Deleting this group will:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 4),
+                      Text('• Permanently delete all expenses'),
+                      Text('• Remove all settlements'),
+                      Text('• Delete all activity history'),
+                      Text('• This action cannot be undone'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('Are you sure you want to delete this group?'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text(
+                    'Delete Group', style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete Group', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
     );
 
     if (confirmed == true) {
       try {
-        // Show loading indicator
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => const AlertDialog(
+          builder: (context) =>
+          const AlertDialog(
             content: Row(
               children: [
                 CircularProgressIndicator(),
@@ -280,9 +314,9 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
           ),
         );
 
-        await _databaseService.deleteGroupCompletely(widget.group.id, currentUserId!);
+        await _databaseService.deleteGroupCompletely(
+            widget.group.id, currentUserId!);
 
-        // Close loading dialog
         Navigator.pop(context);
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -294,7 +328,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
         Navigator.of(context).popUntil((route) => route.isFirst);
       } catch (e) {
-        // Close loading dialog
         Navigator.pop(context);
         _showError('Failed to delete group: $e');
       }
@@ -318,128 +351,139 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Theme.of(context).primaryColor,
-                backgroundImage: member.photoUrl != null
-                    ? NetworkImage(member.photoUrl!)
-                    : null,
-                child: member.photoUrl == null
-                    ? Text(
-                  member.name.substring(0, 1).toUpperCase(),
-                  style: const TextStyle(color: Colors.white),
-                )
-                    : null,
-              ),
-              title: Text(member.name),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(member.email),
-                  if (member.bankAccount != null)
-                    const Row(
-                      children: [
-                        Icon(Icons.account_balance, size: 16, color: Colors.green),
-                        SizedBox(width: 4),
-                        Text(
-                          'Bank account added',
-                          style: TextStyle(
-                            color: Colors.green,
-                            fontSize: 12,
-                          ),
+      builder: (context) =>
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Theme
+                        .of(context)
+                        .primaryColor,
+                    backgroundImage: member.photoUrl != null
+                        ? NetworkImage(member.photoUrl!)
+                        : null,
+                    child: member.photoUrl == null
+                        ? Text(
+                      member.name.substring(0, 1).toUpperCase(),
+                      style: const TextStyle(color: Colors.white),
+                    )
+                        : null,
+                  ),
+                  title: Text(member.name),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(member.email),
+                      if (member.bankAccount != null)
+                        const Row(
+                          children: [
+                            Icon(Icons.account_balance, size: 16,
+                                color: Colors.green),
+                            SizedBox(width: 4),
+                            Text(
+                              'Bank account added',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                    ],
+                  ),
+                ),
+                const Divider(),
+
+                if (isCurrentUser)
+                  ListTile(
+                    leading: Icon(
+                      Icons.account_balance,
+                      color: _currentUser?.bankAccount != null
+                          ? Colors.green
+                          : Colors.grey,
                     ),
-                ],
-              ),
-            ),
-            const Divider(),
+                    title: const Text('Bank Account'),
+                    subtitle: Text(
+                      _currentUser?.bankAccount != null
+                          ? 'IBAN: ${BankingService.formatIBAN(
+                          _currentUser!.bankAccount!)}'
+                          : 'Add bank account for payments',
+                    ),
+                    trailing: _currentUser?.bankAccount != null
+                        ? const Icon(
+                        Icons.check_circle, color: Colors.green, size: 20)
+                        : const Icon(Icons.add, color: Colors.grey),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showBankAccountDialog();
+                    },
+                  ),
 
-            // Bank Account option (only for current user)
-            if (isCurrentUser)
-              ListTile(
-                leading: Icon(
-                  Icons.account_balance,
-                  color: _currentUser?.bankAccount != null ? Colors.green : Colors.grey,
+                if (!isCurrentUser && isCreator)
+                  ListTile(
+                    leading: const Icon(Icons.remove_circle, color: Colors.red),
+                    title: const Text('Remove from Group'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _removeMember(member);
+                    },
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.email),
+                  title: const Text('Send Email'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showError('Email functionality coming soon!');
+                  },
                 ),
-                title: const Text('Bank Account'),
-                subtitle: Text(
-                  _currentUser?.bankAccount != null
-                      ? 'IBAN: ${BankingService.formatIBAN(_currentUser!.bankAccount!)}'
-                      : 'Add bank account for payments',
-                ),
-                trailing: _currentUser?.bankAccount != null
-                    ? const Icon(Icons.check_circle, color: Colors.green, size: 20)
-                    : const Icon(Icons.add, color: Colors.grey),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showBankAccountDialog();
-                },
-              ),
-
-            if (!isCurrentUser && isCreator)
-              ListTile(
-                leading: const Icon(Icons.remove_circle, color: Colors.red),
-                title: const Text('Remove from Group'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _removeMember(member);
-                },
-              ),
-            ListTile(
-              leading: const Icon(Icons.email),
-              title: const Text('Send Email'),
-              onTap: () {
-                Navigator.pop(context);
-                _showError('Email functionality coming soon!');
-              },
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
   Future<void> _removeMember(UserModel member) async {
-    // Show confirmation dialog
     bool? confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Remove Member'),
-        content: Text('Are you sure you want to remove ${member.name} from the group?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder: (context) =>
+          AlertDialog(
+            title: const Text('Remove Member'),
+            content: Text('Are you sure you want to remove ${member
+                .name} from the group?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text(
+                    'Remove', style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Remove', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
     );
 
     if (confirmed != true) return;
 
     try {
-      // Check if member has outstanding balances
-      Map<String, double> balances = await _databaseService.calculateGroupBalancesWithSettlements(widget.group.id);
+      Map<String, double> balances = await _databaseService
+          .calculateGroupBalancesWithSettlements(widget.group.id);
       double memberBalance = balances[member.id] ?? 0.0;
 
       if (memberBalance.abs() > 0.01) {
-        _showError('Cannot remove ${member.name} - they have outstanding balances (€${memberBalance.toStringAsFixed(2)})');
+        _showError('Cannot remove ${member
+            .name} - they have outstanding balances (€${memberBalance
+            .toStringAsFixed(2)})');
         return;
       }
 
       await _databaseService.removeUserFromGroup(widget.group.id, member.id);
-      await _loadMembers(); // Refresh members list
+      await _loadMembers();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -509,13 +553,15 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                                 Text(
                                   widget.group.description!,
                                   style: TextStyle(
-                                    color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                    color: theme.colorScheme.onSurface
+                                        .withOpacity(0.7),
                                   ),
                                 ),
                               Text(
                                 'Currency: ${widget.group.currency}',
                                 style: TextStyle(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.6),
                                   fontSize: 12,
                                 ),
                               ),
@@ -523,6 +569,118 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // NEW: Invite Code Section
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.link, color: theme.primaryColor),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Invite Friends',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Generate an invite code to easily add friends to this group',
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Show invite code status
+                    if (_currentGroup?.hasActiveInviteCode == true) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.check_circle,
+                                color: Colors.green.shade600, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Active invite code',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                  Text(
+                                    'Code: ${_currentGroup!.inviteCode}',
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else
+                      ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.link_off, color: Colors.grey.shade600,
+                                  size: 20),
+                              const SizedBox(width: 8),
+                              const Text('No active invite code'),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _showInviteDialog,
+                        icon: Icon(_currentGroup?.hasActiveInviteCode == true
+                            ? Icons.settings
+                            : Icons.add_link),
+                        label: Text(_currentGroup?.hasActiveInviteCode == true
+                            ? 'Manage Invite Code'
+                            : 'Create Invite Code'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.primaryColor,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -560,7 +718,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                   onPressed: _isAddingMember ? null : _addMember,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.primaryColor,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -621,7 +780,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                       if (isCurrentUser)
                         Container(
                           margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.blue.shade100,
                             borderRadius: BorderRadius.circular(8),
@@ -638,7 +798,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                       if (isMemberCreator)
                         Container(
                           margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.green.shade100,
                             borderRadius: BorderRadius.circular(8),
@@ -672,9 +833,10 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
             const SizedBox(height: 32),
 
-            // Leave/Delete Group Section - Updated with smart logic
+            // Leave/Delete Group Section
             Card(
-              color: _members.length <= 1 ? Colors.red.shade50 : Colors.orange.shade50,
+              color: _members.length <= 1 ? Colors.red.shade50 : Colors.orange
+                  .shade50,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -683,8 +845,11 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     Row(
                       children: [
                         Icon(
-                          _members.length <= 1 ? Icons.delete_forever : Icons.exit_to_app,
-                          color: _members.length <= 1 ? Colors.red.shade600 : Colors.orange.shade600,
+                          _members.length <= 1 ? Icons.delete_forever : Icons
+                              .exit_to_app,
+                          color: _members.length <= 1
+                              ? Colors.red.shade600
+                              : Colors.orange.shade600,
                         ),
                         const SizedBox(width: 8),
                         Text(
@@ -692,7 +857,9 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: _members.length <= 1 ? Colors.red.shade700 : Colors.orange.shade700,
+                            color: _members.length <= 1
+                                ? Colors.red.shade700
+                                : Colors.orange.shade700,
                           ),
                         ),
                       ],
@@ -703,7 +870,9 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                           ? 'You are the last member of this group. Leaving will permanently delete the entire group, including all expenses and history.'
                           : 'You can only leave if you have no outstanding balances.',
                       style: TextStyle(
-                        color: _members.length <= 1 ? Colors.red.shade600 : Colors.orange.shade600,
+                        color: _members.length <= 1
+                            ? Colors.red.shade600
+                            : Colors.orange.shade600,
                         fontSize: 14,
                       ),
                     ),
@@ -713,10 +882,13 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                       child: ElevatedButton(
                         onPressed: _handleLeaveOrDeleteGroup,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _members.length <= 1 ? Colors.red.shade600 : Colors.orange.shade600,
+                          backgroundColor: _members.length <= 1 ? Colors.red
+                              .shade600 : Colors.orange.shade600,
                           foregroundColor: Colors.white,
                         ),
-                        child: Text(_members.length <= 1 ? 'Delete Group' : 'Leave Group'),
+                        child: Text(_members.length <= 1
+                            ? 'Delete Group'
+                            : 'Leave Group'),
                       ),
                     ),
                   ],

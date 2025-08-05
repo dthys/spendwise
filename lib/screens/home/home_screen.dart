@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../dialogs/join_group_dialog.dart';
 import '../../insights/smart_insights_screen.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
@@ -375,6 +376,32 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     );
   }
 
+  Future<void> _showJoinGroupDialog() async {
+    final result = await JoinGroupDialog.showJoinGroupDialog(context);
+
+    // Check if result is not null (user didn't cancel and successfully joined)
+    if (result != null) {
+      // Refresh data (remove await if these methods return void)
+      _refreshBalance(forceRefresh: true);
+      _loadUserName();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully joined "${result.name}"!'),
+            backgroundColor: Colors.green,
+            action: SnackBarAction(
+              label: 'View',
+              textColor: Colors.white,
+              onPressed: () {
+                _navigateWithTransition(GroupDetailScreen(groupId: result.id));
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
   void _showFriendDetailsDialog(BuildContext context, FriendBalance friendBalance) {
     showDialog(
       context: context,
@@ -723,32 +750,56 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   Widget _buildGroupsView(String userId) {
     return Column(
       children: [
-        // Header with "New Group" button
+        // Header with "New Group" and "Join Group" buttons
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Your Groups',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade800,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Your Groups',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      _navigateWithTransition(const GroupsScreen());
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('New Group'),
+                  ),
+                ],
               ),
-              TextButton.icon(
-                onPressed: () {
-                  _navigateWithTransition(const GroupsScreen());
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('New Group'),
+              const SizedBox(height: 8),
+
+              // Join Group Button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _showJoinGroupDialog,
+                  icon: const Icon(Icons.group_add),
+                  label: const Text('Join Group with Invite Code'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    side: BorderSide(color: Theme.of(context).primaryColor),
+                    foregroundColor: Theme.of(context).primaryColor,
+                  ),
+                ),
               ),
             ],
           ),
         ),
 
-        // Groups List
+// Groups List
         Expanded(
           child: StreamBuilder<List<GroupModel>>(
             stream: _databaseService.streamUserGroups(userId),
@@ -760,49 +811,72 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               }
 
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.group_add,
-                        size: 64,
-                        color: Colors.grey.shade400,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No groups yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w500,
+                return ClipRect(  // This will simply clip any overflow without showing the debug stripes
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.group_add,
+                          size: 24,
+                          color: Colors.grey.shade400,
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Create your first group to start\nsplitting expenses with friends!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          _navigateWithTransition(const GroupsScreen());
-                        },
-                        icon: const Icon(Icons.add),
-                        label: const Text('Create Group'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade500,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
+                        const SizedBox(height: 4),
+                        Text(
+                          'No groups yet',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          'Create or join a group!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 10,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              height: 24,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  _navigateWithTransition(const GroupsScreen());
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue.shade500,
+                                  foregroundColor: Colors.white,
+                                  textStyle: const TextStyle(fontSize: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                ),
+                                child: const Text('Create'),
+                              ),
+                            ),
+                            const SizedBox(width: 3),
+                            SizedBox(
+                              height: 24,
+                              child: OutlinedButton(
+                                onPressed: _showJoinGroupDialog,
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: Theme.of(context).primaryColor),
+                                  foregroundColor: Theme.of(context).primaryColor,
+                                  textStyle: const TextStyle(fontSize: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                ),
+                                child: const Text('Join'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
@@ -830,9 +904,47 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                             ),
                           ),
                         ),
-                        title: Text(
-                          group.name,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                group.name,
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            // Show invite code indicator if active
+                            if (group.inviteCode != null &&
+                                group.inviteCodeEnabled == true &&
+                                (group.inviteCodeExpiresAt == null ||
+                                    group.inviteCodeExpiresAt!.isAfter(DateTime.now())))
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.link,
+                                      size: 12,
+                                      color: Colors.green.shade700,
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      'Code',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.green.shade700,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
                         ),
                         subtitle: Text(
                           '${group.memberIds.length} members • ${group.currency}',

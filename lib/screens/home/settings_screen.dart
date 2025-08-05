@@ -712,10 +712,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Notification Settings',
                     subtitle: 'Manage your notification preferences',
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const NotificationSettingsScreen(),
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Feature coming soon!'),
+                          backgroundColor: Colors.blue,
+                          duration: Duration(seconds: 2),
                         ),
                       );
                     },
@@ -735,13 +736,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.star_outline,
                     title: 'Rate Spendwise',
                     subtitle: 'Rate us on Google Play Store',
-                    onTap: _launchPlayStore,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Feature coming soon!'),
+                          backgroundColor: Colors.blue,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
                   ),
                   _buildSettingsTile(
                     icon: Icons.support_agent,
                     title: 'Contact Support',
                     subtitle: 'Get help with your account',
-                    onTap: _launchEmail,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Feature coming soon!'),
+                          backgroundColor: Colors.blue,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
                   ),
                   Consumer<UpdateService>(
                     builder: (context, updateService, child) {

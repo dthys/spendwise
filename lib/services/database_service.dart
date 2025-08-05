@@ -1977,7 +1977,244 @@ class DatabaseService {
     }
   }
 
+  // Generate and enable invite code for a group
+  Future<String> generateInviteCode(String groupId, {
+    Duration? expiresIn,
+    int? maxMembers,
+  }) async {
+    try {
+      String inviteCode = GroupModel.generateInviteCode();
 
+      // Ensure the code is unique
+      while (await _isInviteCodeExists(inviteCode)) {
+        inviteCode = GroupModel.generateInviteCode();
+      }
+
+      DateTime? expiresAt;
+      if (expiresIn != null) {
+        expiresAt = DateTime.now().add(expiresIn);
+      }
+
+      await _groups.doc(groupId).update({
+        'inviteCode': inviteCode,
+        'inviteCodeEnabled': true,
+        'inviteCodeExpiresAt': expiresAt?.millisecondsSinceEpoch,
+        'maxMembers': maxMembers,
+      });
+
+      if (kDebugMode) {
+        print('✅ Generated invite code: $inviteCode for group: $groupId');
+      }
+
+      return inviteCode;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error generating invite code: $e');
+      }
+      throw Exception('Failed to generate invite code: $e');
+    }
+  }
+
+  // Check if invite code already exists
+  Future<bool> _isInviteCodeExists(String inviteCode) async {
+    try {
+      QuerySnapshot query = await _groups
+          .where('inviteCode', isEqualTo: inviteCode)
+          .where('inviteCodeEnabled', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      return query.docs.isNotEmpty;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error checking invite code: $e');
+      }
+      return false;
+    }
+  }
+
+  // Disable invite code for a group
+  Future<void> disableInviteCode(String groupId) async {
+    try {
+      await _groups.doc(groupId).update({
+        'inviteCodeEnabled': false,
+      });
+
+      if (kDebugMode) {
+        print('✅ Disabled invite code for group: $groupId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error disabling invite code: $e');
+      }
+      throw Exception('Failed to disable invite code: $e');
+    }
+  }
+
+  // Join group using invite code
+  Future<GroupModel?> joinGroupWithInviteCode(String inviteCode, String userId) async {
+    try {
+      if (kDebugMode) {
+        print('🔍 Attempting to join group with code: $inviteCode');
+      }
+
+      // Find group with this invite code
+      QuerySnapshot query = await _groups
+          .where('inviteCode', isEqualTo: inviteCode.toUpperCase())
+          .where('inviteCodeEnabled', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      if (query.docs.isEmpty) {
+        throw Exception('Invalid or expired invite code');
+      }
+
+      DocumentSnapshot groupDoc = query.docs.first;
+      GroupModel group = GroupModel.fromMap(groupDoc.data() as Map<String, dynamic>);
+
+      // Check if code is expired
+      if (group.inviteCodeExpiresAt != null &&
+          group.inviteCodeExpiresAt!.isBefore(DateTime.now())) {
+        throw Exception('Invite code has expired');
+      }
+
+      // Check if user is already a member
+      if (group.memberIds.contains(userId)) {
+        throw Exception('You are already a member of this group');
+      }
+
+      // Check if group has reached max members
+      if (!group.canAcceptNewMembers) {
+        throw Exception('Group has reached maximum number of members');
+      }
+
+      // Add user to group
+      await addUserToGroup(group.id, userId);
+
+      // Get user details for activity log
+      UserModel? user = await getUser(userId);
+      String userName = user?.name ?? 'Unknown User';
+
+      // Add activity log
+      await addActivityLog(
+        ActivityLogModel(
+          id: _firestore.collection('activity_logs').doc().id,
+          groupId: group.id,
+          userId: userId,
+          userName: userName,
+          type: ActivityType.memberAdded,
+          description: '$userName joined using invite code',
+          metadata: {
+            'action': 'joined_via_invite_code',
+            'inviteCode': inviteCode,
+            'joinedAt': DateTime.now().millisecondsSinceEpoch,
+          },
+          timestamp: DateTime.now(),
+        ),
+        currentUserId: userId,
+      );
+
+      if (kDebugMode) {
+        print('✅ User $userId successfully joined group ${group.id} via invite code');
+      }
+
+      // Return updated group
+      return await getGroup(group.id);
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error joining group with invite code: $e');
+      }
+      rethrow;
+    }
+  }
+
+  // Get group by invite code (for preview)
+  Future<GroupModel?> getGroupByInviteCode(String inviteCode) async {
+    try {
+      QuerySnapshot query = await _groups
+          .where('inviteCode', isEqualTo: inviteCode.toUpperCase())
+          .where('inviteCodeEnabled', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      if (query.docs.isEmpty) {
+        return null;
+      }
+
+      GroupModel group = GroupModel.fromMap(query.docs.first.data() as Map<String, dynamic>);
+
+      // Check if code is expired
+      if (group.inviteCodeExpiresAt != null &&
+          group.inviteCodeExpiresAt!.isBefore(DateTime.now())) {
+        return null;
+      }
+
+      return group;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error getting group by invite code: $e');
+      }
+      return null;
+    }
+  }
+
+  // Regenerate invite code
+  Future<String> regenerateInviteCode(String groupId, {
+    Duration? expiresIn,
+    int? maxMembers,
+  }) async {
+    try {
+      // Disable current code first
+      await disableInviteCode(groupId);
+
+      // Wait a moment to ensure Firestore consistency
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Generate new code
+      return await generateInviteCode(groupId, expiresIn: expiresIn, maxMembers: maxMembers);
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error regenerating invite code: $e');
+      }
+      throw Exception('Failed to regenerate invite code: $e');
+    }
+  }
+
+  // Get invite code usage stats
+  Future<Map<String, dynamic>> getInviteCodeStats(String groupId) async {
+    try {
+      // Get activity logs for invite code joins
+      QuerySnapshot inviteJoins = await _firestore
+          .collection('activity_logs')
+          .where('groupId', isEqualTo: groupId)
+          .where('type', isEqualTo: 'memberAdded')
+          .where('metadata.action', isEqualTo: 'joined_via_invite_code')
+          .get();
+
+      GroupModel? group = await getGroup(groupId);
+
+      return {
+        'totalInviteJoins': inviteJoins.docs.length,
+        'currentMembers': group?.memberIds.length ?? 0,
+        'maxMembers': group?.maxMembers,
+        'canAcceptMore': group?.canAcceptNewMembers ?? false,
+        'codeActive': group?.hasActiveInviteCode ?? false,
+        'expiresAt': group?.inviteCodeExpiresAt,
+      };
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error getting invite code stats: $e');
+      }
+      return {
+        'totalInviteJoins': 0,
+        'currentMembers': 0,
+        'maxMembers': null,
+        'canAcceptMore': false,
+        'codeActive': false,
+        'expiresAt': null,
+      };
+    }
+  }
 
   // REAL-TIME STREAMS
 
