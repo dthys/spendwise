@@ -40,6 +40,6 @@ class FriendBalance {
 
   @override
   String toString() {
-    return 'FriendBalance(${friend.name}: ${NumberFormatter.formatCurrency(balance)}, ${sharedGroupsCount} groups)';
+    return 'FriendBalance(${friend.name}: ${NumberFormatter.formatCurrency(balance)}, $sharedGroupsCount groups)';
   }
 }

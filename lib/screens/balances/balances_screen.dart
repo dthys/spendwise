@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,7 +32,6 @@ class _BalancesScreenState extends State<BalancesScreen>
 
   // Animation controllers for smooth transitions
   late AnimationController _settlementAnimationController;
-  late Animation<double> _settlementAnimation;
 
   // Data storage - completely separate from UI
   Map<String, double> _balances = {};
@@ -42,7 +40,6 @@ class _BalancesScreenState extends State<BalancesScreen>
   bool _isDataLoaded = false;
 
   // Stream subscriptions to manually control when we update
-  late Stream<List<ExpenseModel>> _expenseStream;
   late Stream<List<SettlementModel>> _settlementStream;
 
   @override
@@ -55,15 +52,7 @@ class _BalancesScreenState extends State<BalancesScreen>
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    _settlementAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(CurvedAnimation(
-      parent: _settlementAnimationController,
-      curve: Curves.easeInOut,
-    ));
 
-    _expenseStream = _databaseService.streamGroupExpenses(widget.groupId);
     _settlementStream = _databaseService.streamGroupSettlements(widget.groupId);
 
     _loadInitialData();
@@ -142,8 +131,8 @@ class _BalancesScreenState extends State<BalancesScreen>
 
       for (String userId2 in widget.members.map((m) => m.id)) {
         if (userId1 != userId2) {
-          String pairKey1 = '${userId1}_${userId2}';
-          String pairKey2 = '${userId2}_${userId1}';
+          String pairKey1 = '${userId1}_$userId2';
+          String pairKey2 = '${userId2}_$userId1';
 
           if (processedPairs.contains(pairKey1) || processedPairs.contains(pairKey2)) {
             continue;
@@ -575,7 +564,7 @@ class _BalancesScreenState extends State<BalancesScreen>
             AnimatedSize(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
-              child: Container(
+              child: SizedBox(
                 width: double.infinity,
                 child: (isExpanded && hasAnyDebts) ? Container(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1134,7 +1123,7 @@ class _BalancesScreenState extends State<BalancesScreen>
 
       // Show processing message
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Row(
             children: [
               SizedBox(
@@ -1145,8 +1134,8 @@ class _BalancesScreenState extends State<BalancesScreen>
                   valueColor: AlwaysStoppedAnimation(Colors.white),
                 ),
               ),
-              const SizedBox(width: 12),
-              const Text('Processing settlement...'),
+              SizedBox(width: 12),
+              Text('Processing settlement...'),
             ],
           ),
           duration: Duration(seconds: 5),
@@ -1181,15 +1170,15 @@ class _BalancesScreenState extends State<BalancesScreen>
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Row(
+          content: const Row(
             children: [
               Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 8),
-              const Text('Settlement recorded successfully!'),
+              SizedBox(width: 8),
+              Text('Settlement recorded successfully!'),
             ],
           ),
           backgroundColor: Colors.green.shade600,
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 2),
         ),
       );
 
@@ -1208,13 +1197,13 @@ class _BalancesScreenState extends State<BalancesScreen>
         SnackBar(
           content: Row(
             children: [
-              Icon(Icons.error, color: Colors.white),
+              const Icon(Icons.error, color: Colors.white),
               const SizedBox(width: 8),
               Expanded(child: Text('Failed: $e')),
             ],
           ),
           backgroundColor: Colors.red,
-          duration: Duration(seconds: 4),
+          duration: const Duration(seconds: 4),
         ),
       );
     }
