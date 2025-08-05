@@ -597,10 +597,10 @@ class DatabaseService {
   }
 
   // NEW: Process settlement and mark affected expenses as settled
-  Future<void> processSettlementWithExpenseTracking(SettlementModel settlement) async {
+  Future<void> processSettlementWithSimplifiedDebts(SettlementModel settlement) async {
     try {
       if (kDebugMode) {
-        print('🔄 === PROCESSING SETTLEMENT WITH EXPENSE TRACKING ===');
+        print('🔄 === PROCESSING SIMPLIFIED SETTLEMENT ===');
         print('💰 Settlement: ${settlement.fromUserId} → ${settlement.toUserId}, €${settlement.amount}');
       }
 
@@ -610,36 +610,38 @@ class DatabaseService {
       // 2. Get all expenses in the group
       List<ExpenseModel> expenses = await getGroupExpenses(settlement.groupId);
 
-      // 3. Find expenses where the debtor owes money to the creditor and mark them as settled
+      // 3. Find ALL expenses involving both users and mark them as settled
       List<ExpenseModel> expensesToUpdate = [];
-      double remainingSettlementAmount = settlement.amount;
-
-      // Sort expenses by date (oldest first) to settle in chronological order
-      expenses.sort((a, b) => a.date.compareTo(b.date));
 
       for (ExpenseModel expense in expenses) {
-        if (remainingSettlementAmount <= 0.01) break;
+        bool shouldMarkAsSettled = false;
+        String userToMarkAsSettled = '';
 
-        // Check if this expense involves the settlement parties
-        bool debtorOwesInThisExpense = expense.paidBy == settlement.toUserId &&
+        // Case 1: Settlement payer was a debtor in this expense
+        if (expense.paidBy == settlement.toUserId &&
             expense.splitBetween.contains(settlement.fromUserId) &&
-            !expense.isSettledForUser(settlement.fromUserId);
+            !expense.isSettledForUser(settlement.fromUserId)) {
+          shouldMarkAsSettled = true;
+          userToMarkAsSettled = settlement.fromUserId;
+        }
 
-        if (debtorOwesInThisExpense) {
-          double amountOwedInExpense = expense.getAmountOwedBy(settlement.fromUserId);
+        // Case 2: Settlement receiver was a debtor in this expense
+        // (This handles the net settlement - when A owes B $50 but B owes A $30,
+        //  settling $20 should mark both expenses as settled)
+        else if (expense.paidBy == settlement.fromUserId &&
+            expense.splitBetween.contains(settlement.toUserId) &&
+            !expense.isSettledForUser(settlement.toUserId)) {
+          shouldMarkAsSettled = true;
+          userToMarkAsSettled = settlement.toUserId;
+        }
 
-          if (amountOwedInExpense > 0) {
-            // Mark this expense as settled for the debtor
-            ExpenseModel updatedExpense = expense.copyWithSettlement(settlement.fromUserId, true);
-            expensesToUpdate.add(updatedExpense);
+        if (shouldMarkAsSettled) {
+          ExpenseModel updatedExpense = expense.copyWithSettlement(userToMarkAsSettled, true);
+          expensesToUpdate.add(updatedExpense);
 
-            remainingSettlementAmount -= amountOwedInExpense;
-
-            if (kDebugMode) {
-              print('✅ Marking expense "${expense.description}" as settled for ${settlement.fromUserId}');
-              print('💰 Amount settled: €${amountOwedInExpense.toStringAsFixed(2)}');
-              print('💰 Remaining settlement: €${remainingSettlementAmount.toStringAsFixed(2)}');
-            }
+          if (kDebugMode) {
+            print('✅ Marking expense "${expense.description}" as settled for $userToMarkAsSettled');
+            print('💰 Amount: €${expense.getAmountOwedBy(userToMarkAsSettled).toStringAsFixed(2)}');
           }
         }
       }
@@ -668,6 +670,7 @@ class DatabaseService {
             'amount': settlement.amount,
             'method': settlement.method.name,
             'expensesSettled': expensesToUpdate.length,
+            'settlementType': 'simplified_net_settlement',
           },
           timestamp: DateTime.now(),
         ),
@@ -675,13 +678,13 @@ class DatabaseService {
       );
 
       if (kDebugMode) {
-        print('✅ Settlement processed successfully');
+        print('✅ Simplified settlement processed successfully');
         print('📊 Updated ${expensesToUpdate.length} expenses');
       }
 
     } catch (e) {
       if (kDebugMode) {
-        print('❌ Error processing settlement: $e');
+        print('❌ Error processing simplified settlement: $e');
       }
       rethrow;
     }
@@ -834,7 +837,7 @@ class DatabaseService {
       );
 
       // Process the settlement with expense tracking
-      await processSettlementWithExpenseTracking(settlementModel);
+      await processSettlementWithSimplifiedDebts(settlementModel);
 
       // NEW: Check if the user is now fully settled
       Map<String, double> balances = await calculateGroupBalancesWithSettlements(debt.groupId);
@@ -859,6 +862,25 @@ class DatabaseService {
       rethrow;
     }
   }
+
+  Future<bool> validateSettlementResult(String groupId, String userId1, String userId2) async {
+    try {
+      double directBalance = await _calculateDirectBalance(userId1, userId2, groupId);
+
+      if (kDebugMode) {
+        print('🔍 Validation: Direct balance between $userId1 and $userId2: €${directBalance.toStringAsFixed(2)}');
+      }
+
+      // After a settlement, the direct balance should be very close to zero
+      return directBalance.abs() <= 0.01;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error validating settlement: $e');
+      }
+      return false;
+    }
+  }
+
   // UPDATED: Replace your existing calculateGroupBalancesWithSettlements method
   Future<Map<String, double>> calculateGroupBalancesWithSettlements(String groupId) async {
     try {

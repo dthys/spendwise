@@ -25,39 +25,182 @@ class BalancesScreen extends StatefulWidget {
   _BalancesScreenState createState() => _BalancesScreenState();
 }
 
-class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAliveClientMixin {
+class _BalancesScreenState extends State<BalancesScreen>
+    with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
   final DatabaseService _databaseService = DatabaseService();
   final Set<String> _expandedMembers = <String>{};
+  final Set<String> _settlingDebts = <String>{}; // Track debts being settled
+
+  // Animation controllers for smooth transitions
+  late AnimationController _settlementAnimationController;
+  late Animation<double> _settlementAnimation;
+
+  // Data storage - completely separate from UI
+  Map<String, double> _balances = {};
+  Map<String, List<IndividualDebt>> _individualDebts = {};
+  Map<String, List<IndividualDebt>> _creditorDebts = {};
+  bool _isDataLoaded = false;
+
+  // Stream subscriptions to manually control when we update
+  late Stream<List<ExpenseModel>> _expenseStream;
+  late Stream<List<SettlementModel>> _settlementStream;
 
   @override
   bool get wantKeepAlive => true;
 
-  // Enhanced balance calculation that respects settlements
-  Map<String, double> _calculateCurrentBalances(
-      List<ExpenseModel> expenses,
-      List<SettlementModel> settlements,
-      String? viewingUserId,
-      ) {
-    return _databaseService.calculateUserSpecificBalances(expenses, settlements, viewingUserId);
+  @override
+  void initState() {
+    super.initState();
+    _settlementAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _settlementAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _settlementAnimationController,
+      curve: Curves.easeInOut,
+    ));
+
+    _expenseStream = _databaseService.streamGroupExpenses(widget.groupId);
+    _settlementStream = _databaseService.streamGroupSettlements(widget.groupId);
+
+    _loadInitialData();
   }
 
-  // Calculate individual debts between members
-  Map<String, List<IndividualDebt>> _calculateIndividualDebts(
-      List<ExpenseModel> expenses,
-      List<SettlementModel> settlements,
-      String? viewingUserId,
-      ) {
-    return _databaseService.calculateIndividualDebtsWithSettlements(expenses, viewingUserId);
+  @override
+  void dispose() {
+    _settlementAnimationController.dispose();
+    super.dispose();
   }
 
-  // Calculate who owes money TO a specific member (for creditors to see their debtors)
-  List<IndividualDebt> _calculateDebtsOwedToMember(
-      String memberId,
+  // Load data once and store it
+  Future<void> _loadInitialData() async {
+    final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.uid;
+
+    // Get current snapshot of data
+    final expenses = await _databaseService.getGroupExpenses(widget.groupId);
+    final settlements = await _databaseService.getGroupSettlements(widget.groupId);
+
+    _updateCalculations(expenses, settlements, currentUserId);
+  }
+
+  // Update calculations and store results
+  void _updateCalculations(
       List<ExpenseModel> expenses,
       List<SettlementModel> settlements,
       String? viewingUserId,
       ) {
-    return _databaseService.calculateDebtsOwedToMember(memberId, expenses, viewingUserId);
+    if (kDebugMode) {
+      print('🔄 Updating calculations...');
+    }
+
+    // Calculate balances
+    _balances = _databaseService.calculateUserSpecificBalances(expenses, settlements, viewingUserId);
+
+    // Calculate individual debts
+    final rawDebts = _databaseService.calculateIndividualDebtsWithSettlements(expenses, viewingUserId);
+    _individualDebts = _calculateSimplifiedIndividualDebts(rawDebts);
+    _creditorDebts = _calculateSimplifiedCreditorDebts(_individualDebts);
+
+    _isDataLoaded = true;
+
+    // Only update UI, don't recalculate
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  // Simplified debt calculation
+  Map<String, List<IndividualDebt>> _calculateSimplifiedIndividualDebts(
+      Map<String, List<IndividualDebt>> rawDebts,
+      ) {
+    // Net debt calculation
+    Map<String, Map<String, double>> netDebtMatrix = {};
+    for (String userId in widget.members.map((m) => m.id)) {
+      netDebtMatrix[userId] = {};
+      for (String otherUserId in widget.members.map((m) => m.id)) {
+        if (userId != otherUserId) {
+          netDebtMatrix[userId]![otherUserId] = 0.0;
+        }
+      }
+    }
+
+    for (String debtorId in rawDebts.keys) {
+      for (IndividualDebt debt in rawDebts[debtorId] ?? []) {
+        netDebtMatrix[debtorId]![debt.creditorId] =
+            (netDebtMatrix[debtorId]![debt.creditorId] ?? 0.0) + debt.amount;
+      }
+    }
+
+    Map<String, List<IndividualDebt>> simplifiedDebts = {};
+    Set<String> processedPairs = {};
+
+    for (String userId1 in widget.members.map((m) => m.id)) {
+      List<IndividualDebt> userDebts = [];
+
+      for (String userId2 in widget.members.map((m) => m.id)) {
+        if (userId1 != userId2) {
+          String pairKey1 = '${userId1}_${userId2}';
+          String pairKey2 = '${userId2}_${userId1}';
+
+          if (processedPairs.contains(pairKey1) || processedPairs.contains(pairKey2)) {
+            continue;
+          }
+
+          double debt1to2 = netDebtMatrix[userId1]![userId2] ?? 0.0;
+          double debt2to1 = netDebtMatrix[userId2]![userId1] ?? 0.0;
+          double netDebt = debt1to2 - debt2to1;
+
+          if (netDebt.abs() > 0.01) {
+            if (netDebt > 0) {
+              userDebts.add(IndividualDebt(
+                debtorId: userId1,
+                creditorId: userId2,
+                amount: netDebt,
+              ));
+            } else {
+              if (simplifiedDebts[userId2] == null) {
+                simplifiedDebts[userId2] = [];
+              }
+              simplifiedDebts[userId2]!.add(IndividualDebt(
+                debtorId: userId2,
+                creditorId: userId1,
+                amount: netDebt.abs(),
+              ));
+            }
+          }
+
+          processedPairs.add(pairKey1);
+          processedPairs.add(pairKey2);
+        }
+      }
+
+      if (userDebts.isNotEmpty) {
+        simplifiedDebts[userId1] = userDebts;
+      }
+    }
+
+    return simplifiedDebts;
+  }
+
+  // Calculate simplified creditor debts
+  Map<String, List<IndividualDebt>> _calculateSimplifiedCreditorDebts(
+      Map<String, List<IndividualDebt>> simplifiedDebts,
+      ) {
+    Map<String, List<IndividualDebt>> creditorDebts = {};
+
+    for (String debtorId in simplifiedDebts.keys) {
+      for (IndividualDebt debt in simplifiedDebts[debtorId] ?? []) {
+        if (creditorDebts[debt.creditorId] == null) {
+          creditorDebts[debt.creditorId] = [];
+        }
+        creditorDebts[debt.creditorId]!.add(debt);
+      }
+    }
+
+    return creditorDebts;
   }
 
   UserModel _getUserById(String userId) {
@@ -77,7 +220,6 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
     return NumberFormatter.formatCurrency(amount.abs());
   }
 
-  // Sort members to put current user first
   List<UserModel> _getSortedMembers(String? currentUserId) {
     List<UserModel> sortedMembers = List.from(widget.members);
 
@@ -96,11 +238,27 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    super.build(context);
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.uid;
+
+    // Show loading if data not ready
+    if (!_isDataLoaded) {
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: const Text('Balances'),
+          backgroundColor: theme.appBarTheme.backgroundColor,
+          foregroundColor: theme.appBarTheme.foregroundColor,
+          elevation: 0,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final sortedMembers = _getSortedMembers(currentUserId);
 
     return WillPopScope(
       onWillPop: () async {
@@ -120,522 +278,521 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
           ),
           actions: [
             IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () async {
+                setState(() {
+                  _isDataLoaded = false;
+                });
+                await _loadInitialData();
+              },
+              tooltip: 'Refresh',
+            ),
+            IconButton(
               icon: const Icon(Icons.history),
               onPressed: () => _showSettlementHistory(),
               tooltip: 'Settlement History',
             ),
           ],
         ),
-        body: StreamBuilder<List<ExpenseModel>>(
-          stream: _databaseService.streamGroupExpenses(widget.groupId),
-          builder: (context, expenseSnapshot) {
-            return StreamBuilder<List<SettlementModel>>(
-              stream: _databaseService.streamGroupSettlements(widget.groupId),
-              builder: (context, settlementSnapshot) {
-                if (expenseSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                Map<String, double> balances = {};
-                Map<String, List<IndividualDebt>> individualDebts = {};
-                Map<String, List<IndividualDebt>> creditorDebts = {};
-
-                if (expenseSnapshot.hasData) {
-                  List<ExpenseModel> expenses = expenseSnapshot.data!;
-                  List<SettlementModel> settlements = settlementSnapshot.data ?? [];
-
-                  balances = _calculateCurrentBalances(expenses, settlements, currentUserId);
-                  individualDebts = _calculateIndividualDebts(expenses, settlements, currentUserId);
-
-                  // Calculate debts owed TO each member (for creditors)
-                  for (String memberId in widget.members.map((m) => m.id)) {
-                    creditorDebts[memberId] = _calculateDebtsOwedToMember(memberId, expenses, settlements, currentUserId);
-                  }
-                }
-
-                final sortedMembers = _getSortedMembers(currentUserId);
-
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    setState(() {});
-                  },
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      children: [
-                        // Header
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: theme.primaryColor,
-                            borderRadius: const BorderRadius.only(
-                              bottomLeft: Radius.circular(20),
-                              bottomRight: Radius.circular(20),
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.account_balance,
-                                color: colorScheme.onPrimary,
-                                size: 48,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Group Balances',
-                                style: TextStyle(
-                                  color: colorScheme.onPrimary,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                'Tap members to see and settle individual debts',
-                                style: TextStyle(
-                                  color: colorScheme.onPrimary.withOpacity(0.8),
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 24),
-
-                        // Member Cards with Expandable Sections
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Column(
-                            children: sortedMembers.map((member) {
-                              double balance = balances[member.id] ?? 0.0;
-                              List<IndividualDebt> memberOwes = individualDebts[member.id] ?? [];
-                              List<IndividualDebt> memberIsOwed = creditorDebts[member.id] ?? [];
-                              bool isExpanded = _expandedMembers.contains(member.id);
-                              bool isCurrentUser = member.id == currentUserId;
-                              bool hasAnyDebts = memberOwes.isNotEmpty || memberIsOwed.isNotEmpty;
-
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                color: theme.cardColor,
-                                child: Column(
-                                  children: [
-                                    // Main Member Tile
-                                    ListTile(
-                                      leading: CircleAvatar(
-                                        backgroundColor: balance.abs() < 0.01
-                                            ? Colors.grey.shade500
-                                            : balance > 0
-                                            ? Colors.green.shade500
-                                            : Colors.red.shade500,
-                                        child: Text(
-                                          member.name.substring(0, 1).toUpperCase(),
-                                          style: const TextStyle(color: Colors.white),
-                                        ),
-                                      ),
-                                      title: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              member.name,
-                                              style: TextStyle(
-                                                color: colorScheme.onSurface,
-                                                fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
-                                              ),
-                                            ),
-                                          ),
-                                          if (isCurrentUser) ...[
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: theme.primaryColor,
-                                                borderRadius: BorderRadius.circular(12),
-                                              ),
-                                              child: Text(
-                                                'YOU',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: colorScheme.onPrimary,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                          ],
-                                        ],
-                                      ),
-                                      subtitle: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              hasAnyDebts
-                                                  ? (balance.abs() < 0.01
-                                                  ? 'Has debts to settle'
-                                                  : balance > 0
-                                                  ? 'Is owed'
-                                                  : 'Owes')
-                                                  : 'All settled up',
-                                              style: TextStyle(
-                                                color: colorScheme.onSurface.withOpacity(0.7),
-                                              ),
-                                            ),
-                                          ),
-                                          if (hasAnyDebts) ...[
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: Colors.orange.shade100,
-                                                borderRadius: BorderRadius.circular(10),
-                                              ),
-                                              child: Text(
-                                                '${memberOwes.length + memberIsOwed.length} debt${(memberOwes.length + memberIsOwed.length) == 1 ? '' : 's'}',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  color: Colors.orange.shade700,
-                                                ),
-                                              ),
-                                            ),
-                                          ] else ...[
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: Colors.green.shade100,
-                                                borderRadius: BorderRadius.circular(10),
-                                              ),
-                                              child: Text(
-                                                'SETTLED',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.green.shade700,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                      trailing: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            hasAnyDebts
-                                                ? _formatAmount(balance)
-                                                : NumberFormatter.formatCurrency(0),
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: !hasAnyDebts
-                                                  ? Colors.green.shade600  // Green for settled
-                                                  : balance.abs() < 0.01
-                                                  ? Colors.grey.shade600
-                                                  : balance > 0
-                                                  ? Colors.green.shade600
-                                                  : Colors.red.shade600,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Icon(
-                                            hasAnyDebts
-                                                ? (isExpanded
-                                                ? Icons.keyboard_arrow_up
-                                                : Icons.keyboard_arrow_down)
-                                                : Icons.check_circle,
-                                            color: hasAnyDebts
-                                                ? colorScheme.onSurface.withOpacity(0.6)
-                                                : Colors.green.shade600,
-                                          ),
-                                        ],
-                                      ),
-                                      onTap: () {
-                                        // Only allow expansion if there are actual debts to show
-                                        if (hasAnyDebts) {
-                                          setState(() {
-                                            if (isExpanded) {
-                                              _expandedMembers.remove(member.id);
-                                            } else {
-                                              _expandedMembers.add(member.id);
-                                            }
-                                          });
-                                        }
-                                        // For settled members, do nothing - no setState call
-                                      },
-                                    ),
-
-                                    // Expanded Section - Individual Debts
-                                    AnimatedCrossFade(
-                                      firstChild: const SizedBox.shrink(),
-                                      secondChild: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                        child: Column(
-                                          children: [
-                                            Divider(color: colorScheme.onSurface.withOpacity(0.1)),
-
-                                            // Show debts this member owes to others
-                                            if (memberOwes.isNotEmpty) ...[
-                                              Padding(
-                                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                                child: Text(
-                                                  '${member.name} owes:',
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: colorScheme.onSurface.withOpacity(0.8),
-                                                  ),
-                                                ),
-                                              ),
-                                              ...memberOwes.map((debt) {
-                                                UserModel creditor = _getUserById(debt.creditorId);
-                                                return GestureDetector(
-                                                  onTap: () {
-                                                    _showSettleDialog(
-                                                      SimplifiedDebt(
-                                                        fromUserId: debt.debtorId,
-                                                        toUserId: debt.creditorId,
-                                                        amount: debt.amount,
-                                                        groupId: widget.groupId, // ADD this line
-                                                      ),
-                                                      member,
-                                                      creditor,
-                                                    );
-                                                  },
-                                                  child: Container(
-                                                    margin: const EdgeInsets.only(bottom: 8),
-                                                    padding: const EdgeInsets.all(12),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.red.shade50,
-                                                      borderRadius: BorderRadius.circular(8),
-                                                      border: Border.all(
-                                                        color: Colors.red.shade200,
-                                                        width: 1,
-                                                      ),
-                                                    ),
-                                                    child: Row(
-                                                      children: [
-                                                        CircleAvatar(
-                                                          radius: 16,
-                                                          backgroundColor: Colors.red.shade500,
-                                                          child: Text(
-                                                            creditor.name.substring(0, 1).toUpperCase(),
-                                                            style: const TextStyle(
-                                                              color: Colors.white,
-                                                              fontSize: 12,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(width: 12),
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                                            children: [
-                                                              Text(
-                                                                creditor.name,
-                                                                style: TextStyle(
-                                                                  fontWeight: FontWeight.w500,
-                                                                  color: Colors.red.shade800,
-                                                                ),
-                                                              ),
-                                                              Text(
-                                                                'Tap to settle debt',
-                                                                style: TextStyle(
-                                                                  fontSize: 12,
-                                                                  color: Colors.red.shade600,
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                        Column(
-                                                          crossAxisAlignment: CrossAxisAlignment.end,
-                                                          children: [
-                                                            Text(
-                                                              _formatAmount(debt.amount),
-                                                              style: TextStyle(
-                                                                fontSize: 14,
-                                                                fontWeight: FontWeight.bold,
-                                                                color: Colors.red.shade800,
-                                                              ),
-                                                            ),
-                                                            Icon(
-                                                              Icons.touch_app,
-                                                              size: 14,
-                                                              color: Colors.red.shade600,
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                );
-                                              }),
-                                            ],
-
-                                            // Show debts others owe to this member
-                                            if (memberIsOwed.isNotEmpty) ...[
-                                              if (memberOwes.isNotEmpty) const SizedBox(height: 16),
-                                              Padding(
-                                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                                child: Text(
-                                                  'Others owe ${member.name}:',
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: colorScheme.onSurface.withOpacity(0.8),
-                                                  ),
-                                                ),
-                                              ),
-                                              ...memberIsOwed.map((debt) {
-                                                UserModel debtor = _getUserById(debt.debtorId);
-                                                return GestureDetector(
-                                                  onTap: () {
-                                                    _showSettleDialog(
-                                                      SimplifiedDebt(
-                                                        fromUserId: debt.debtorId,
-                                                        toUserId: debt.creditorId,
-                                                        amount: debt.amount,
-                                                        groupId: widget.groupId, // ADD this line
-                                                      ),
-                                                      debtor,
-                                                      member,
-                                                    );
-                                                  },
-                                                  child: Container(
-                                                    margin: const EdgeInsets.only(bottom: 8),
-                                                    padding: const EdgeInsets.all(12),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.green.shade50,
-                                                      borderRadius: BorderRadius.circular(8),
-                                                      border: Border.all(
-                                                        color: Colors.green.shade200,
-                                                        width: 1,
-                                                      ),
-                                                    ),
-                                                    child: Row(
-                                                      children: [
-                                                        CircleAvatar(
-                                                          radius: 16,
-                                                          backgroundColor: Colors.green.shade500,
-                                                          child: Text(
-                                                            debtor.name.substring(0, 1).toUpperCase(),
-                                                            style: const TextStyle(
-                                                              color: Colors.white,
-                                                              fontSize: 12,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(width: 12),
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                                            children: [
-                                                              Text(
-                                                                debtor.name,
-                                                                style: TextStyle(
-                                                                  fontWeight: FontWeight.w500,
-                                                                  color: Colors.green.shade800,
-                                                                ),
-                                                              ),
-                                                              Text(
-                                                                'Tap to mark as settled',
-                                                                style: TextStyle(
-                                                                  fontSize: 12,
-                                                                  color: Colors.green.shade600,
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                        Column(
-                                                          crossAxisAlignment: CrossAxisAlignment.end,
-                                                          children: [
-                                                            Text(
-                                                              _formatAmount(debt.amount),
-                                                              style: TextStyle(
-                                                                fontSize: 14,
-                                                                fontWeight: FontWeight.bold,
-                                                                color: Colors.green.shade800,
-                                                              ),
-                                                            ),
-                                                            Icon(
-                                                              Icons.touch_app,
-                                                              size: 14,
-                                                              color: Colors.green.shade600,
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                );
-                                              }),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                      crossFadeState: (isExpanded && hasAnyDebts)
-                                          ? CrossFadeState.showSecond
-                                          : CrossFadeState.showFirst,
-                                      duration: const Duration(milliseconds: 300),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-
-                        // All Settled Message
-                        if (balances.values.every((balance) => balance.abs() < 0.01)) ...[
-                          const SizedBox(height: 24),
-                          Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Card(
-                              color: theme.cardColor,
-                              child: Padding(
-                                padding: const EdgeInsets.all(32),
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.check_circle,
-                                      color: Colors.green.shade500,
-                                      size: 64,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'All Settled!',
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green.shade600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'All current expenses are settled',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: colorScheme.onSurface.withOpacity(0.6),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-
-                        const SizedBox(height: 100),
-                      ],
+        body: RefreshIndicator(
+          onRefresh: () async {
+            setState(() {
+              _isDataLoaded = false;
+            });
+            await _loadInitialData();
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                // Header
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
                     ),
                   ),
-                );
-              },
-            );
-          },
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.account_balance,
+                        color: colorScheme.onPrimary,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Group Balances',
+                        style: TextStyle(
+                          color: colorScheme.onPrimary,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Tap members to see and settle individual debts',
+                        style: TextStyle(
+                          color: colorScheme.onPrimary.withOpacity(0.8),
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Member Cards with Smooth Animations
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: sortedMembers.map((member) {
+                      return _buildMemberCard(
+                        member,
+                        currentUserId,
+                        theme,
+                        colorScheme,
+                      );
+                    }).toList(),
+                  ),
+                ),
+
+                // All Settled Message
+                if (_balances.values.every((balance) => balance.abs() < 0.01)) ...[
+                  const SizedBox(height: 24),
+                  _buildAllSettledCard(theme, colorScheme),
+                ],
+
+                const SizedBox(height: 100),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
+  Widget _buildMemberCard(
+      UserModel member,
+      String? currentUserId,
+      ThemeData theme,
+      ColorScheme colorScheme,
+      ) {
+    double balance = _balances[member.id] ?? 0.0;
+    List<IndividualDebt> memberOwes = _individualDebts[member.id] ?? [];
+    List<IndividualDebt> memberIsOwed = _creditorDebts[member.id] ?? [];
+    bool isExpanded = _expandedMembers.contains(member.id);
+    bool isCurrentUser = member.id == currentUserId;
+    bool hasAnyDebts = memberOwes.isNotEmpty || memberIsOwed.isNotEmpty;
+
+    // Filter out debts that are currently being settled
+    memberOwes = memberOwes.where((debt) => !_settlingDebts.contains('${debt.debtorId}_${debt.creditorId}')).toList();
+    memberIsOwed = memberIsOwed.where((debt) => !_settlingDebts.contains('${debt.debtorId}_${debt.creditorId}')).toList();
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Card(
+        color: theme.cardColor,
+        elevation: isExpanded ? 4 : 1,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Main Member Tile
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: hasAnyDebts ? () {
+                  HapticFeedback.lightImpact();
+                  // ONLY update UI state - no data changes
+                  setState(() {
+                    if (isExpanded) {
+                      _expandedMembers.remove(member.id);
+                    } else {
+                      _expandedMembers.add(member.id);
+                    }
+                  });
+                } : null,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      // Avatar
+                      CircleAvatar(
+                        backgroundColor: balance.abs() < 0.01
+                            ? Colors.grey.shade500
+                            : balance > 0
+                            ? Colors.green.shade500
+                            : Colors.red.shade500,
+                        child: Text(
+                          member.name.substring(0, 1).toUpperCase(),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Member info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    member.name,
+                                    style: TextStyle(
+                                      color: colorScheme.onSurface,
+                                      fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                                if (isCurrentUser) ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: theme.primaryColor,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      'YOU',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: colorScheme.onPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    hasAnyDebts
+                                        ? (balance.abs() < 0.01
+                                        ? 'Has debts to settle'
+                                        : balance > 0
+                                        ? 'Is owed'
+                                        : 'Owes')
+                                        : 'All settled up',
+                                    style: TextStyle(
+                                      color: colorScheme.onSurface.withOpacity(0.7),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                                if (hasAnyDebts) ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.shade100,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      '${memberOwes.length + memberIsOwed.length} debt${(memberOwes.length + memberIsOwed.length) == 1 ? '' : 's'}',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.orange.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                ] else ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade100,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      'SETTLED',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.green.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(width: 8),
+
+                      // Amount and arrow
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            hasAnyDebts
+                                ? _formatAmount(balance)
+                                : NumberFormatter.formatCurrency(0),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: !hasAnyDebts
+                                  ? Colors.green.shade600
+                                  : balance.abs() < 0.01
+                                  ? Colors.grey.shade600
+                                  : balance > 0
+                                  ? Colors.green.shade600
+                                  : Colors.red.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          AnimatedRotation(
+                            turns: hasAnyDebts && isExpanded ? 0.5 : 0,
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              hasAnyDebts
+                                  ? Icons.keyboard_arrow_down
+                                  : Icons.check_circle,
+                              color: hasAnyDebts
+                                  ? colorScheme.onSurface.withOpacity(0.6)
+                                  : Colors.green.shade600,
+                              size: 20,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Expandable Content with smooth size transition
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: Container(
+                width: double.infinity,
+                child: (isExpanded && hasAnyDebts) ? Container(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        height: 1,
+                        color: colorScheme.onSurface.withOpacity(0.1),
+                        margin: const EdgeInsets.only(bottom: 16),
+                      ),
+
+                      // Show debts this member owes to others
+                      if (memberOwes.isNotEmpty) ...[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Text(
+                              '${member.name} owes:',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurface.withOpacity(0.8),
+                              ),
+                            ),
+                          ),
+                        ),
+                        ...memberOwes.map((debt) => _buildDebtCard(debt, member, true)),
+                      ],
+
+                      // Show debts others owe to this member
+                      if (memberIsOwed.isNotEmpty) ...[
+                        if (memberOwes.isNotEmpty) const SizedBox(height: 16),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Text(
+                              'Others owe ${member.name}:',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurface.withOpacity(0.8),
+                              ),
+                            ),
+                          ),
+                        ),
+                        ...memberIsOwed.map((debt) => _buildDebtCard(debt, member, false)),
+                      ],
+                    ],
+                  ),
+                ) : const SizedBox.shrink(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDebtCard(IndividualDebt debt, UserModel member, bool memberOwes) {
+    final debtKey = '${debt.debtorId}_${debt.creditorId}';
+    final isSettling = _settlingDebts.contains(debtKey);
+    final otherUser = memberOwes ? _getUserById(debt.creditorId) : _getUserById(debt.debtorId);
+    final color = memberOwes ? Colors.red : Colors.green;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: isSettling ? null : () {
+            HapticFeedback.selectionClick();
+            _showSettleDialog(
+              SimplifiedDebt(
+                fromUserId: debt.debtorId,
+                toUserId: debt.creditorId,
+                amount: debt.amount,
+                groupId: widget.groupId,
+              ),
+              _getUserById(debt.debtorId),
+              _getUserById(debt.creditorId),
+            );
+          },
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: isSettling ? 0.6 : 1.0,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: color.shade200,
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: color.shade500,
+                    child: Text(
+                      otherUser.name.substring(0, 1).toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          otherUser.name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: color.shade800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isSettling
+                              ? 'Settling...'
+                              : memberOwes
+                              ? 'Tap to settle debt'
+                              : 'Tap to mark as settled',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isSettling ? color.shade500 : color.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _formatAmount(debt.amount),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: color.shade800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: isSettling
+                            ? SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(color.shade600),
+                          ),
+                        )
+                            : Icon(
+                          Icons.touch_app,
+                          size: 14,
+                          color: color.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAllSettledCard(ThemeData theme, ColorScheme colorScheme) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Card(
+        color: theme.cardColor,
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            children: [
+              Icon(
+                Icons.check_circle,
+                color: Colors.green.shade500,
+                size: 64,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'All Settled!',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green.shade600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'All current expenses are settled',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showSettleDialog(SimplifiedDebt debt, UserModel fromUser, UserModel toUser) {
     SettlementMethod selectedMethod = SettlementMethod.bankTransfer;
@@ -955,7 +1112,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
     });
   }
 
-  // Settlement confirmation with expense tracking
+  // Enhanced settlement confirmation with smooth animations
   Future<void> _confirmSettlement(
       SimplifiedDebt debt,
       UserModel fromUser,
@@ -966,11 +1123,37 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
     try {
       Navigator.pop(context);
 
+      // Add debt to settling list immediately for instant UI feedback
+      final debtKey = '${debt.fromUserId}_${debt.toUserId}';
+      setState(() {
+        _settlingDebts.add(debtKey);
+      });
+
+      // Start settlement animation
+      _settlementAnimationController.forward();
+
+      // Show processing message
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Processing settlement...')),
+        SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation(Colors.white),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text('Processing settlement...'),
+            ],
+          ),
+          duration: Duration(seconds: 5),
+        ),
       );
 
-      // Use the new settlement method with expense tracking
+      // Perform the settlement
       await _databaseService.confirmSettlementWithExpenseTracking(
         debt,
         fromUser,
@@ -979,26 +1162,64 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
         notes,
       );
 
+      // Add a small delay for smooth animation
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Remove from settling list and reload data
+      setState(() {
+        _settlingDebts.remove(debtKey);
+        _expandedMembers.remove(debt.fromUserId); // Collapse after settlement
+        _isDataLoaded = false; // Force reload
+      });
+
+      // Reload fresh data
+      await _loadInitialData();
+
+      // Reset animation
+      _settlementAnimationController.reset();
+
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Settlement recorded and expenses marked as settled!'),
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              const Text('Settlement recorded successfully!'),
+            ],
+          ),
           backgroundColor: Colors.green.shade600,
+          duration: Duration(seconds: 2),
         ),
       );
 
-      // Collapse the expanded section after settlement
+    } catch (e) {
+      // Remove from settling list on error
+      final debtKey = '${debt.fromUserId}_${debt.toUserId}';
       setState(() {
-        _expandedMembers.remove(debt.fromUserId);
+        _settlingDebts.remove(debtKey);
       });
 
-    } catch (e) {
+      // Reset animation
+      _settlementAnimationController.reset();
+
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Failed: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
       );
     }
   }
+
   void _showSettlementHistory() {
     showModalBottomSheet(
       context: context,
@@ -1037,7 +1258,7 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
             ),
             Expanded(
               child: StreamBuilder<List<SettlementModel>>(
-                stream: _databaseService.streamGroupSettlements(widget.groupId),
+                stream: _settlementStream,
                 builder: (context, snapshot) {
                   if (!snapshot.hasData || snapshot.data!.isEmpty) {
                     return Center(
@@ -1062,35 +1283,39 @@ class _BalancesScreenState extends State<BalancesScreen> with AutomaticKeepAlive
                       UserModel fromUser = _getUserById(settlement.fromUserId);
                       UserModel toUser = _getUserById(settlement.toUserId);
 
-                      return Card(
-                        child: ListTile(
-                          leading: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade500,
-                              borderRadius: BorderRadius.circular(20),
+                      return AnimatedContainer(
+                        duration: Duration(milliseconds: 200 + (index * 50)),
+                        child: Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade500,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(settlement.method.emoji),
                             ),
-                            child: Text(settlement.method.emoji),
-                          ),
-                          title: Text('${fromUser.name} → ${toUser.name}'),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('${settlement.method.displayName} • ${_formatDate(settlement.settledAt)}'),
-                              if (settlement.notes != null && settlement.notes!.isNotEmpty)
-                                Text(
-                                  settlement.notes!,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade600,
-                                    fontStyle: FontStyle.italic,
+                            title: Text('${fromUser.name} → ${toUser.name}'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('${settlement.method.displayName} • ${_formatDate(settlement.settledAt)}'),
+                                if (settlement.notes != null && settlement.notes!.isNotEmpty)
+                                  Text(
+                                    settlement.notes!,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                      fontStyle: FontStyle.italic,
+                                    ),
                                   ),
-                                ),
-                            ],
-                          ),
-                          trailing: Text(
-                            _formatAmount(settlement.amount),
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade600),
+                              ],
+                            ),
+                            trailing: Text(
+                              _formatAmount(settlement.amount),
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade600),
+                            ),
                           ),
                         ),
                       );
@@ -1129,3 +1354,4 @@ class IndividualDebt {
   }
 }
 
+// SimplifiedDebt class is imported from database_service.dart
