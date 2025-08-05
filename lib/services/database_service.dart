@@ -1637,9 +1637,13 @@ class DatabaseService {
           .doc(expense.id)
           .update(expense.toMap());
 
-      // Get user details for activity log
-      UserModel? user = await getUser(expense.paidBy);
-      String userName = user?.name ?? 'Unknown User';
+      // ✅ FIXED: Get the CURRENT USER's details (who is updating the expense)
+      UserModel? currentUser = currentUserId != null ? await getUser(currentUserId) : null;
+      String currentUserName = currentUser?.name ?? 'Unknown User';
+
+      // Get paidBy user's name for reference
+      UserModel? paidByUser = await getUser(expense.paidBy);
+      String paidByUserName = paidByUser?.name ?? 'Unknown User';
 
       // Create change list for metadata
       List<String> changes = [];
@@ -1666,20 +1670,31 @@ class DatabaseService {
         }
       }
 
+      // Create appropriate description
+      String description;
+      if (currentUserId == expense.paidBy) {
+        description = '$currentUserName edited expense: ${expense.description}';
+      } else {
+        description = '$currentUserName edited expense: ${expense.description} (paid by $paidByUserName)';
+      }
+
       // Add activity log with notification
       await addActivityLog(
         ActivityLogModel(
           id: _firestore.collection('activity_logs').doc().id,
           groupId: expense.groupId,
-          userId: expense.paidBy,
-          userName: userName,
+          userId: currentUserId ?? expense.paidBy,  // ✅ Use currentUserId, fallback to paidBy
+          userName: currentUserName,                // ✅ Use current user's name
           type: ActivityType.expenseEdited,
-          description: '$userName edited expense: ${expense.description}',
+          description: description,                 // ✅ Clear description showing who did what
           metadata: {
             'expenseId': expense.id,
             'changes': changes,
             'newAmount': expense.amount,
             'newDescription': expense.description,
+            'paidBy': expense.paidBy,              // ✅ Store who actually paid
+            'paidByName': paidByUserName,          // ✅ Store payer's name
+            'editedBy': currentUserId,             // ✅ Store who edited the expense
             'originalExpense': oldExpense?.toMap(),
             'updatedExpense': expense.toMap(),
           },
@@ -1707,24 +1722,41 @@ class DatabaseService {
       // Update the expense with the generated ID
       await docRef.update({'id': docRef.id});
 
-      // Get user details for activity log
-      UserModel? user = await getUser(expense.paidBy);
-      String userName = user?.name ?? 'Unknown User';
+      // ✅ FIXED: Get the CURRENT USER's details (who is adding the expense)
+      UserModel? currentUser = currentUserId != null ? await getUser(currentUserId) : null;
+      String currentUserName = currentUser?.name ?? 'Unknown User';
+
+      // ✅ FIXED: Get paidBy user's name for the description
+      UserModel? paidByUser = await getUser(expense.paidBy);
+      String paidByUserName = paidByUser?.name ?? 'Unknown User';
+
+      // Create appropriate description
+      String description;
+      if (currentUserId == expense.paidBy) {
+        // Current user paid for themselves
+        description = '$currentUserName added expense: ${expense.description}';
+      } else {
+        // Current user added expense for someone else
+        description = '$currentUserName added expense: ${expense.description} (paid by $paidByUserName)';
+      }
 
       // Add activity log with notification
       await addActivityLog(
         ActivityLogModel(
           id: _firestore.collection('activity_logs').doc().id,
           groupId: expense.groupId,
-          userId: expense.paidBy,
-          userName: userName,
+          userId: currentUserId ?? expense.paidBy,  // ✅ Use currentUserId, fallback to paidBy
+          userName: currentUserName,                // ✅ Use current user's name
           type: ActivityType.expenseAdded,
-          description: '$userName added expense: ${expense.description}',
+          description: description,                 // ✅ Clear description showing who did what
           metadata: {
             'expenseId': docRef.id,
             'amount': expense.amount,
             'description': expense.description,
             'category': expense.category.displayName,
+            'paidBy': expense.paidBy,              // ✅ Store who actually paid in metadata
+            'paidByName': paidByUserName,          // ✅ Store payer's name for reference
+            'addedBy': currentUserId,              // ✅ Store who added the expense
             'expense': expense.toMap(),
           },
           timestamp: DateTime.now(),
@@ -1735,7 +1767,7 @@ class DatabaseService {
       if (kDebugMode) {
         print('✅ Expense created with ID: ${docRef.id} and notification sent');
       }
-      return docRef.id; // Return the generated ID
+      return docRef.id;
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error creating expense: $e');
@@ -1759,24 +1791,39 @@ class DatabaseService {
           .doc(expenseId)
           .delete();
 
-      // Get user details for activity log
-      UserModel? user = await getUser(expense.paidBy);
-      String userName = user?.name ?? 'Unknown User';
+      // ✅ FIXED: Get the CURRENT USER's details (who is deleting the expense)
+      UserModel? currentUser = currentUserId != null ? await getUser(currentUserId) : null;
+      String currentUserName = currentUser?.name ?? 'Unknown User';
+
+      // Get paidBy user's name for reference
+      UserModel? paidByUser = await getUser(expense.paidBy);
+      String paidByUserName = paidByUser?.name ?? 'Unknown User';
+
+      // Create appropriate description
+      String description;
+      if (currentUserId == expense.paidBy) {
+        description = '$currentUserName deleted expense: ${expense.description}';
+      } else {
+        description = '$currentUserName deleted expense: ${expense.description} (was paid by $paidByUserName)';
+      }
 
       // Add activity log with notification
       await addActivityLog(
         ActivityLogModel(
           id: _firestore.collection('activity_logs').doc().id,
           groupId: expense.groupId,
-          userId: expense.paidBy,
-          userName: userName,
+          userId: currentUserId ?? expense.paidBy,  // ✅ Use currentUserId, fallback to paidBy
+          userName: currentUserName,                // ✅ Use current user's name
           type: ActivityType.expenseDeleted,
-          description: '$userName deleted expense: ${expense.description}',
+          description: description,                 // ✅ Clear description showing who did what
           metadata: {
             'expenseId': expenseId,
             'deletedAmount': expense.amount,
             'deletedDescription': expense.description,
             'deletedCategory': expense.category.displayName,
+            'paidBy': expense.paidBy,              // ✅ Store who actually paid
+            'paidByName': paidByUserName,          // ✅ Store payer's name
+            'deletedBy': currentUserId,            // ✅ Store who deleted the expense
             'originalExpense': expense.toMap(),
           },
           timestamp: DateTime.now(),
@@ -1794,7 +1841,6 @@ class DatabaseService {
       rethrow;
     }
   }
-
   // SETTLEMENT OPERATIONS
 
   // Create a new settlement
