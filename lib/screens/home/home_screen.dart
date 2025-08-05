@@ -23,6 +23,14 @@ class HomeScreen extends StatefulWidget {
   _HomeScreenState createState() => _HomeScreenState();
 }
 
+// Helper class to store group with its unread count
+class GroupWithUnreadCount {
+  final GroupModel group;
+  final int unreadCount;
+
+  GroupWithUnreadCount({required this.group, required this.unreadCount});
+}
+
 class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin {
   final DatabaseService _databaseService = DatabaseService();
   Timer? _refreshTimer;
@@ -33,6 +41,8 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   // Cache to prevent unnecessary rebuilds
   double? _cachedBalance;
   DateTime? _lastBalanceUpdate;
+  Map<String, int> _unreadCountsCache = {};
+  DateTime? _lastUnreadCountsUpdate;
 
   // Toggle between Groups and Friends view
   bool _showingFriends = false;
@@ -319,43 +329,123 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 return const Center(child: CircularProgressIndicator());
               }
 
-              List<GroupModel> groups = groupSnapshot.data!;
+              List<GroupModel> allGroups = groupSnapshot.data!;
 
-              if (groups.isEmpty) {
+              if (allGroups.isEmpty) {
                 return const Center(
                   child: Text('No groups yet'),
                 );
               }
 
-              return ListView.builder(
-                itemCount: groups.length,
-                itemBuilder: (context, index) {
-                  GroupModel group = groups[index];
+              // Use optimized method
+              return FutureBuilder<List<GroupModel>>(
+                future: _getGroupsWithUnreadNotificationsOptimized(user.uid, allGroups),
+                builder: (context, filteredGroupsSnapshot) {
+                  if (!filteredGroupsSnapshot.hasData) {
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('Loading notifications...'),
+                        ],
+                      ),
+                    );
+                  }
 
-                  return StreamBuilder<int>(
-                    stream: _databaseService.streamUnreadActivityCount(user.uid, group.id),
-                    builder: (context, unreadSnapshot) {
-                      int unreadCount = unreadSnapshot.data ?? 0;
+                  List<GroupModel> groupsWithUnread = filteredGroupsSnapshot.data!;
+
+                  if (groupsWithUnread.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.notifications_none,
+                            size: 48,
+                            color: Colors.grey.shade400,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'All caught up!',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'No new activity in your groups',
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    itemCount: groupsWithUnread.length,
+                    itemBuilder: (context, index) {
+                      GroupModel group = groupsWithUnread[index];
+                      // Use cached unread count instead of streaming
+                      int unreadCount = _unreadCountsCache[group.id] ?? 0;
 
                       return ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: unreadCount > 0 ? Colors.red.shade500 : Colors.grey.shade400,
+                          backgroundColor: Colors.red.shade500,
                           child: Text(
                             group.name.substring(0, 1).toUpperCase(),
                             style: const TextStyle(color: Colors.white),
                           ),
                         ),
-                        title: Text(group.name),
-                        subtitle: Text(
-                            unreadCount > 0
-                                ? '$unreadCount new activit${unreadCount == 1 ? 'y' : 'ies'}'
-                                : 'No new activity'
+                        title: Text(
+                          group.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                        trailing: unreadCount > 0
-                            ? const Icon(Icons.fiber_manual_record, color: Colors.red, size: 12)
-                            : null,
+                        subtitle: Text(
+                          '$unreadCount new activit${unreadCount == 1 ? 'y' : 'ies'}',
+                          style: TextStyle(
+                            color: Colors.red.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade500,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                unreadCount.toString(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(
+                              Icons.arrow_forward_ios,
+                              size: 16,
+                            ),
+                          ],
+                        ),
                         onTap: () async {
                           Navigator.pop(context);
+                          // Clear cache when navigating to force refresh next time
+                          _unreadCountsCache.clear();
+                          _lastUnreadCountsUpdate = null;
                           _navigateWithTransition(GroupDetailScreen(groupId: group.id));
                         },
                       );
@@ -374,6 +464,88 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         ],
       ),
     );
+  }
+
+  void _clearUnreadCountsCache() {
+    _unreadCountsCache.clear();
+    _lastUnreadCountsUpdate = null;
+  }
+
+// Fixed helper method - replace your existing _getGroupsWithUnreadNotifications method
+  Future<List<GroupModel>> _getGroupsWithUnreadNotificationsOptimized(String userId, List<GroupModel> allGroups) async {
+    try {
+      // Use cache if recent (less than 30 seconds old)
+      if (_lastUnreadCountsUpdate != null &&
+          DateTime.now().difference(_lastUnreadCountsUpdate!).inSeconds < 30 &&
+          _unreadCountsCache.isNotEmpty) {
+
+        List<GroupModel> groupsWithUnread = allGroups
+            .where((group) => (_unreadCountsCache[group.id] ?? 0) > 0)
+            .toList();
+
+        // Sort by cached unread count
+        groupsWithUnread.sort((a, b) {
+          int aCount = _unreadCountsCache[a.id] ?? 0;
+          int bCount = _unreadCountsCache[b.id] ?? 0;
+          return bCount.compareTo(aCount);
+        });
+
+        if (kDebugMode) {
+          print('🚀 Using cached unread counts (${groupsWithUnread.length} groups with unread)');
+        }
+        return groupsWithUnread;
+      }
+
+      // Batch fetch unread counts for all groups in parallel
+      if (kDebugMode) {
+        print('🔄 Fetching fresh unread counts for ${allGroups.length} groups...');
+      }
+
+      List<Future<MapEntry<String, int>>> futures = allGroups.map((group) async {
+        try {
+          int count = await _databaseService.getUnreadActivityCount(userId, group.id);
+          return MapEntry(group.id, count);
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ Error getting unread count for ${group.id}: $e');
+          }
+          return MapEntry(group.id, 0);
+        }
+      }).toList();
+
+      // Wait for all queries to complete in parallel
+      List<MapEntry<String, int>> results = await Future.wait(futures);
+
+      // Update cache
+      _unreadCountsCache.clear();
+      for (var result in results) {
+        _unreadCountsCache[result.key] = result.value;
+      }
+      _lastUnreadCountsUpdate = DateTime.now();
+
+      // Filter and sort groups with unread notifications
+      List<GroupWithUnreadCount> groupsWithCounts = [];
+      for (GroupModel group in allGroups) {
+        int unreadCount = _unreadCountsCache[group.id] ?? 0;
+        if (unreadCount > 0) {
+          groupsWithCounts.add(GroupWithUnreadCount(group: group, unreadCount: unreadCount));
+        }
+      }
+
+      // Sort by unread count (highest first)
+      groupsWithCounts.sort((a, b) => b.unreadCount.compareTo(a.unreadCount));
+
+      if (kDebugMode) {
+        print('✅ Fresh unread counts fetched: ${groupsWithCounts.length} groups with unread');
+      }
+
+      return groupsWithCounts.map((item) => item.group).toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error in optimized unread notifications: $e');
+      }
+      return [];
+    }
   }
 
   Future<void> _showJoinGroupDialog() async {
