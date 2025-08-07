@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../dialogs/add_friend_dialog.dart';
 import '../../dialogs/join_group_dialog.dart';
+import '../../friends/friend_detail_screen.dart';
 import '../../insights/smart_insights_screen.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
@@ -162,12 +164,13 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     }
 
     try {
-      List<GroupModel> groups = await _databaseService.streamUserGroups(_currentUserId).first;
+      // ✅ FIX: Use getAllUserGroups instead of streamUserGroups to include friend groups in balance calculation
+      List<GroupModel> groups = await _databaseService.getAllUserGroups(_currentUserId);
       double totalBalance = 0.0;
 
       if (kDebugMode) {
         print('🏠 === CALCULATING HOME SCREEN BALANCE ===');
-        print('🏠 User has ${groups.length} groups');
+        print('🏠 User has ${groups.length} total groups (including friend groups)');
       }
 
       for (GroupModel group in groups) {
@@ -803,7 +806,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'No friends with balances yet',
+                  'No friends yet',
                   style: TextStyle(
                     fontSize: 18,
                     color: Colors.grey.shade600,
@@ -812,10 +815,20 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Add friends to groups to see\nyour balances with them',
+                  'Add friends to start sharing expenses!',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.grey.shade500,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: _addFriend,
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Add Friend'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
                   ),
                 ),
               ],
@@ -823,99 +836,184 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          itemCount: friends.length,
-          itemBuilder: (context, index) {
-            FriendBalance friendBalance = friends[index];
+        return Column(
+          children: [
+            // Add Friend Button at the top
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _addFriend,
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Add New Friend'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    side: BorderSide(color: Theme.of(context).primaryColor),
+                    foregroundColor: Theme.of(context).primaryColor,
+                  ),
+                ),
+              ),
+            ),
 
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: Material(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                elevation: 2,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => _showFriendDetailsDialog(context, friendBalance),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 24,
-                          backgroundImage: friendBalance.friend.photoUrl != null
-                              ? NetworkImage(friendBalance.friend.photoUrl!)
-                              : null,
-                          backgroundColor: friendBalance.balanceColor.withOpacity(0.2),
-                          child: friendBalance.friend.photoUrl == null
-                              ? Text(
-                            friendBalance.friend.name.substring(0, 1).toUpperCase(),
-                            style: TextStyle(
-                              color: friendBalance.balanceColor,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                              : null,
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+            // Friends List
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: friends.length,
+                itemBuilder: (context, index) {
+                  FriendBalance friendBalance = friends[index];
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      elevation: 2,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => _navigateToFriendDetail(friendBalance.friend.id), // UPDATED
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
                             children: [
-                              Text(
-                                friendBalance.friend.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
+                              CircleAvatar(
+                                radius: 24,
+                                backgroundImage: friendBalance.friend.photoUrl != null
+                                    ? NetworkImage(friendBalance.friend.photoUrl!)
+                                    : null,
+                                backgroundColor: friendBalance.balanceColor.withOpacity(0.2),
+                                child: friendBalance.friend.photoUrl == null
+                                    ? Text(
+                                  friendBalance.friend.name.substring(0, 1).toUpperCase(),
+                                  style: TextStyle(
+                                    color: friendBalance.balanceColor,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                                    : null,
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      friendBalance.friend.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      friendBalance.balanceText,
+                                      style: TextStyle(
+                                        color: friendBalance.balanceColor,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${friendBalance.sharedGroupsCount} shared group${friendBalance.sharedGroupsCount != 1 ? 's' : ''}',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                friendBalance.balanceText,
-                                style: TextStyle(
-                                  color: friendBalance.balanceColor,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${friendBalance.sharedGroupsCount} shared group${friendBalance.sharedGroupsCount != 1 ? 's' : ''}',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 12,
-                                ),
+                              Column(
+                                children: [
+                                  Icon(
+                                    friendBalance.balanceIcon,
+                                    color: friendBalance.balanceColor,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Icon(
+                                    Icons.arrow_forward_ios,
+                                    size: 14,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
-                        Column(
-                          children: [
-                            Icon(
-                              friendBalance.balanceIcon,
-                              color: friendBalance.balanceColor,
-                              size: 20,
-                            ),
-                            const SizedBox(height: 4),
-                            Icon(
-                              Icons.arrow_forward_ios,
-                              size: 14,
-                              color: Colors.grey.shade400,
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ],
         );
       },
     );
+  }
+
+// Add these methods to your _HomeScreenState class:
+
+  Future<void> _addFriend() async {
+    final result = await AddFriendDialog.showAddFriendDialog(context);
+
+    if (result != null) {
+      // Refresh data
+      _refreshBalance(forceRefresh: true);
+      _loadUserName();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Friend added successfully!'),
+            backgroundColor: Colors.green,
+            action: SnackBarAction(
+              label: 'View',
+              textColor: Colors.white,
+              onPressed: () {
+                // Navigate to the friend detail (you'll need to extract friend ID from result)
+                // This is a simplified version - you might need to adjust based on your needs
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _navigateToFriendDetail(String friendId) async {
+    final result = await Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => FriendDetailScreen(friendId: friendId),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: animation.drive(
+              Tween(begin: const Offset(1.0, 0.0), end: Offset.zero).chain(
+                CurveTween(curve: Curves.easeInOut),
+              ),
+            ),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 250),
+      ),
+    );
+
+    // Refresh balance when returning
+    bool forceRefresh = (result == 'refresh' || result == true);
+    _refreshBalance(forceRefresh: forceRefresh);
+
+    if (forceRefresh) {
+      _loadUserName();
+    }
   }
 
   // Build Groups View with loading handling

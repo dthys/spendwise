@@ -178,11 +178,57 @@ class DatabaseService {
           .orderBy('createdAt', descending: true)
           .get();
 
+      List<GroupModel> allGroups = query.docs
+          .map((doc) => GroupModel.fromMap(doc.data() as Map<String, dynamic>))
+          .toList();
+
+      // Filter out friend groups (groups with isFriendGroup metadata)
+      List<GroupModel> regularGroups = allGroups.where((group) {
+        Map<String, dynamic>? metadata = group.metadata;
+        return metadata == null || metadata['isFriendGroup'] != true;
+      }).toList();
+
+      return regularGroups;
+    } catch (e) {
+      throw Exception('Failed to get user groups: $e');
+    }
+  }
+
+  Future<List<GroupModel>> getAllUserGroups(String userId) async {
+    try {
+      QuerySnapshot query = await _groups
+          .where('memberIds', arrayContains: userId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
       return query.docs
           .map((doc) => GroupModel.fromMap(doc.data() as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      throw Exception('Failed to get user groups: $e');
+      throw Exception('Failed to get all user groups: $e');
+    }
+  }
+
+  Future<List<GroupModel>> getUserFriendGroups(String userId) async {
+    try {
+      QuerySnapshot query = await _groups
+          .where('memberIds', arrayContains: userId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      List<GroupModel> allGroups = query.docs
+          .map((doc) => GroupModel.fromMap(doc.data() as Map<String, dynamic>))
+          .toList();
+
+      // Filter to only friend groups
+      List<GroupModel> friendGroups = allGroups.where((group) {
+        Map<String, dynamic>? metadata = group.metadata;
+        return metadata != null && metadata['isFriendGroup'] == true;
+      }).toList();
+
+      return friendGroups;
+    } catch (e) {
+      throw Exception('Failed to get friend groups: $e');
     }
   }
 
@@ -597,8 +643,10 @@ class DatabaseService {
   }
 
   // NEW: Process settlement and mark affected expenses as settled
-  Future<void> processSettlementWithSimplifiedDebts(SettlementModel settlement) async {
-    try {
+  Future<void> processSettlementWithSimplifiedDebts(
+      SettlementModel settlement, {
+        String? performedByUserId,
+      }) async {    try {
       if (kDebugMode) {
         print('🔄 === PROCESSING SIMPLIFIED SETTLEMENT ===');
         print('💰 Settlement: ${settlement.fromUserId} → ${settlement.toUserId}, €${settlement.amount}');
@@ -651,31 +699,33 @@ class DatabaseService {
         await _firestore.collection('expenses').doc(expense.id).update(expense.toMap());
       }
 
-      // 5. Add activity log
-      UserModel? fromUser = await getUser(settlement.fromUserId);
-      UserModel? toUser = await getUser(settlement.toUserId);
+// 5. Add activity log
+    String actorUserId = performedByUserId ?? settlement.fromUserId;
+    UserModel? actor = await getUser(actorUserId);
+    UserModel? fromUser = await getUser(settlement.fromUserId);
+    UserModel? toUser = await getUser(settlement.toUserId);
 
-      await addActivityLog(
-        ActivityLogModel(
-          id: _firestore.collection('activity_logs').doc().id,
-          groupId: settlement.groupId,
-          userId: settlement.fromUserId,
-          userName: fromUser?.name ?? 'Unknown User',
-          type: ActivityType.settlement,
-          description: '${fromUser?.name ?? "Unknown"} settled €${settlement.amount.toStringAsFixed(2)} with ${toUser?.name ?? "Unknown"}',
-          metadata: {
-            'settlementId': settlement.id,
-            'fromUserId': settlement.fromUserId,
-            'toUserId': settlement.toUserId,
-            'amount': settlement.amount,
-            'method': settlement.method.name,
-            'expensesSettled': expensesToUpdate.length,
-            'settlementType': 'simplified_net_settlement',
-          },
-          timestamp: DateTime.now(),
-        ),
-        currentUserId: settlement.fromUserId,
-      );
+    await addActivityLog(
+      ActivityLogModel(
+        id: _firestore.collection('activity_logs').doc().id,
+        groupId: settlement.groupId,
+        userId: actorUserId,
+        userName: actor?.name ?? 'Unknown User',
+        type: ActivityType.settlement,
+        description: '${actor?.name ?? "Unknown"} settled €${settlement.amount.toStringAsFixed(2)} with ${settlement.fromUserId == actorUserId ? toUser?.name : fromUser?.name ?? "Unknown"}',
+        metadata: {
+          'settlementId': settlement.id,
+          'fromUserId': settlement.fromUserId,
+          'toUserId': settlement.toUserId,
+          'amount': settlement.amount,
+          'method': settlement.method.name,
+          'expensesSettled': expensesToUpdate.length,
+          'settlementType': 'simplified_net_settlement',
+        },
+        timestamp: DateTime.now(),
+      ),
+      currentUserId: actorUserId,
+    );
 
       if (kDebugMode) {
         print('✅ Simplified settlement processed successfully');
@@ -865,7 +915,7 @@ class DatabaseService {
 
   Future<bool> validateSettlementResult(String groupId, String userId1, String userId2) async {
     try {
-      double directBalance = await _calculateDirectBalance(userId1, userId2, groupId);
+      double directBalance = await calculateDirectBalance(userId1, userId2, groupId);
 
       if (kDebugMode) {
         print('🔍 Validation: Direct balance between $userId1 and $userId2: €${directBalance.toStringAsFixed(2)}');
@@ -1275,6 +1325,8 @@ class DatabaseService {
     });
   }
 
+
+
   // Get all friends with consolidated balances across all groups
   Future<List<FriendBalance>> getUserFriendsWithBalances(String userId) async {
     try {
@@ -1282,10 +1334,10 @@ class DatabaseService {
         print('🤝 === CALCULATING FRIENDS BALANCES ===');
       }
 
-      // Get all user's groups
-      List<GroupModel> groups = await getUserGroups(userId);
+      // Get ALL user's groups (including friend groups)
+      List<GroupModel> groups = await getAllUserGroups(userId);
       if (kDebugMode) {
-        print('📊 User has ${groups.length} groups');
+        print('📊 User has ${groups.length} total groups (including friend groups)');
       }
 
       // Map to store friend ID -> consolidated balance
@@ -1308,11 +1360,8 @@ class DatabaseService {
         for (String memberId in group.memberIds) {
           if (memberId == userId) continue; // Skip self
 
-
           // Calculate what this friend owes/is owed relative to current user
-          // If user has +50 and friend has -30, friend owes user some amount
-          // We need to calculate the direct relationship between these two users
-          double friendToUserBalance = await _calculateDirectBalance(userId, memberId, group.id);
+          double friendToUserBalance = await calculateDirectBalance(userId, memberId, group.id);
 
           // Add to consolidated balance
           friendBalances[memberId] = (friendBalances[memberId] ?? 0.0) + friendToUserBalance;
@@ -1345,27 +1394,29 @@ class DatabaseService {
         if (friend != null) {
           double balance = friendBalances[friendId] ?? 0.0;
 
-          // Only include friends with non-zero balances or if you want to show all
-          // Comment out the if condition below to show all friends regardless of balance
-          if (balance.abs() > 0.01) {
-            friendsList.add(FriendBalance(
-              friend: friend,
-              balance: balance,
-              sharedGroupIds: sharedGroups[friendId] ?? [],
-              sharedGroupsCount: sharedGroups[friendId]?.length ?? 0,
-            ));
-          }
+          // Include ALL friends, regardless of balance
+          friendsList.add(FriendBalance(
+            friend: friend,
+            balance: balance,
+            sharedGroupIds: sharedGroups[friendId] ?? [],
+            sharedGroupsCount: sharedGroups[friendId]?.length ?? 0,
+          ));
         }
       }
 
-      // Sort by balance (highest owed to you first, then what you owe)
-      friendsList.sort((a, b) => b.balance.compareTo(a.balance));
+      // Sort by balance (highest owed to you first, then what you owe, then settled)
+      friendsList.sort((a, b) {
+        // First sort by whether there's a balance vs settled
+        if (a.balance.abs() <= 0.01 && b.balance.abs() > 0.01) return 1;
+        if (b.balance.abs() <= 0.01 && a.balance.abs() > 0.01) return -1;
+
+        // Then sort by balance amount
+        return b.balance.compareTo(a.balance);
+      });
 
       if (kDebugMode) {
-        print('🤝 Final friends list: ${friendsList.length} friends with balances');
-      }
-      for (var friend in friendsList) {
-        if (kDebugMode) {
+        print('🤝 Final friends list: ${friendsList.length} friends total');
+        for (var friend in friendsList) {
           print('👤 ${friend.friend.name}: €${friend.balance.toStringAsFixed(2)} (${friend.sharedGroupsCount} groups)');
         }
       }
@@ -1579,7 +1630,7 @@ class DatabaseService {
   }
 
 // Helper method to calculate direct balance between two users in a specific group
-  Future<double> _calculateDirectBalance(String userId, String friendId, String groupId) async {
+  Future<double> calculateDirectBalance(String userId, String friendId, String groupId) async {
     try {
       // Get all expenses in the group
       List<ExpenseModel> expenses = await getGroupExpenses(groupId);
@@ -1594,8 +1645,7 @@ class DatabaseService {
 
         if (!userInvolved || !friendInvolved) continue;
 
-        // REMOVED: Check for settled expenses - we now use simplified approach
-        // Just calculate the direct relationship for this expense
+        // Calculate the direct relationship for this expense
         if (expense.paidBy == userId && expense.splitBetween.contains(friendId)) {
           // User paid, friend owes their share
           directBalance += expense.getAmountOwedBy(friendId);
@@ -2286,15 +2336,23 @@ class DatabaseService {
 
   // REAL-TIME STREAMS
 
-  // Stream user's groups
+// Stream user's groups (excluding friend groups)
   Stream<List<GroupModel>> streamUserGroups(String userId) {
     return _groups
         .where('memberIds', arrayContains: userId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-        .map((doc) => GroupModel.fromMap(doc.data() as Map<String, dynamic>))
-        .toList());
+        .map((snapshot) {
+      List<GroupModel> allGroups = snapshot.docs
+          .map((doc) => GroupModel.fromMap(doc.data() as Map<String, dynamic>))
+          .toList();
+
+      // Filter out friend groups
+      return allGroups.where((group) {
+        Map<String, dynamic>? metadata = group.metadata;
+        return metadata == null || metadata['isFriendGroup'] != true;
+      }).toList();
+    });
   }
 
   // Stream group expenses

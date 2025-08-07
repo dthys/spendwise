@@ -43,6 +43,16 @@ class UserModel {
     );
   }
 
+  static UserModel empty() {
+    return UserModel(
+      id: '',
+      name: 'Unknown User',
+      email: '',
+      createdAt: DateTime.now(),
+      groupIds: [],
+    );
+  }
+
   // Create from Firebase Auth User
   factory UserModel.fromFirebaseUser(String id, String name, String email, String? photoUrl) {
     return UserModel(

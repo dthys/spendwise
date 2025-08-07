@@ -14,6 +14,7 @@ enum ExpenseCategory {
   healthcare('Healthcare', '🏥'),
   other('Other', '📝');
 
+
   const ExpenseCategory(this.displayName, this.emoji);
   final String displayName;
   final String emoji;
@@ -53,6 +54,7 @@ class ExpenseModel {
     this.notes,
     this.settledByUser = const {}, // NEW: Default to empty map
   });
+
 
   // Convert to Map for Firebase
   Map<String, dynamic> toMap() {

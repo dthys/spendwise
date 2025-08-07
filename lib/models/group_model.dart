@@ -13,6 +13,7 @@ class GroupModel {
   final bool inviteCodeEnabled;
   final DateTime? inviteCodeExpiresAt;
   final int? maxMembers;
+  final Map<String, dynamic>? metadata;
 
   GroupModel({
     required this.id,
@@ -27,6 +28,7 @@ class GroupModel {
     this.inviteCodeEnabled = false,
     this.inviteCodeExpiresAt,
     this.maxMembers,
+    this.metadata,
   });
 
   // Generate a random 6-character invite code
@@ -51,6 +53,7 @@ class GroupModel {
       'inviteCodeEnabled': inviteCodeEnabled,
       'inviteCodeExpiresAt': inviteCodeExpiresAt?.millisecondsSinceEpoch,
       'maxMembers': maxMembers,
+      'metadata': metadata,
     };
   }
 
@@ -70,6 +73,7 @@ class GroupModel {
           ? DateTime.fromMillisecondsSinceEpoch(map['inviteCodeExpiresAt'])
           : null,
       maxMembers: map['maxMembers'],
+      metadata: map['metadata'] != null ? Map<String, dynamic>.from(map['metadata']) : null,
     );
   }
 
@@ -86,6 +90,7 @@ class GroupModel {
     bool? inviteCodeEnabled,
     DateTime? inviteCodeExpiresAt,
     int? maxMembers,
+    Map<String, dynamic>? metadata,
   }) {
     return GroupModel(
       id: id ?? this.id,
@@ -99,6 +104,7 @@ class GroupModel {
       inviteCodeEnabled: inviteCodeEnabled ?? this.inviteCodeEnabled,
       inviteCodeExpiresAt: inviteCodeExpiresAt ?? this.inviteCodeExpiresAt,
       maxMembers: maxMembers ?? this.maxMembers,
+      metadata: metadata ?? this.metadata,
     );
   }
 
