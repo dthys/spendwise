@@ -12,6 +12,11 @@ import '../models/group_model.dart';
 import '../screens/groups/add_expense_screen.dart';
 import 'friend_service.dart';
 
+enum ExpenseFilter {
+  unsettled,
+  all;
+}
+
 
 class FriendDetailScreen extends StatefulWidget {
   final String friendId;
@@ -40,6 +45,9 @@ class _FriendDetailScreenState extends State<FriendDetailScreen>
 
   List<ExpenseModel> _expenses = [];
   Timer? _refreshTimer;
+
+  ExpenseFilter _currentFilter = ExpenseFilter.unsettled;
+
 
   @override
   void initState() {
@@ -105,15 +113,75 @@ class _FriendDetailScreenState extends State<FriendDetailScreen>
     if (_currentUserId == null || _friend == null) return;
 
     try {
-      List<ExpenseModel> expenses = await _friendService.getFriendExpenses(_currentUserId!, _friend!.id);
+      List<ExpenseModel> allExpenses = await _friendService.getFriendExpenses(_currentUserId!, _friend!.id);
+
+      List<ExpenseModel> filteredExpenses = [];
+
+      if (_currentFilter == ExpenseFilter.all) {
+        filteredExpenses = allExpenses;
+      } else {
+        // Filter out settled expenses (same logic as group screen)
+        for (ExpenseModel expense in allExpenses) {
+          // Rule 1: Hide expenses that are completely settled for everyone
+          if (expense.isFullySettled()) {
+            continue;
+          }
+
+          // Rule 2: For expenses involving this user, hide if settled for them
+          if (expense.splitBetween.contains(_currentUserId) &&
+              expense.paidBy != _currentUserId &&
+              expense.isSettledForUser(_currentUserId!)) {
+            continue;
+          }
+
+          filteredExpenses.add(expense);
+        }
+      }
+
       if (mounted) {
-        setState(() => _expenses = expenses);
+        setState(() => _expenses = filteredExpenses);
       }
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error loading friend expenses: $e');
       }
     }
+  }
+
+// Add this method to create the filter toggle widget
+  Widget _buildFilterToggle() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Icon(
+            Icons.filter_list,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Show settled expenses',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+              fontSize: 14,
+            ),
+          ),
+          const Spacer(),
+          Switch(
+            value: _currentFilter == ExpenseFilter.all,
+            onChanged: (bool value) {
+              setState(() {
+                _currentFilter = value ? ExpenseFilter.all : ExpenseFilter.unsettled;
+              });
+              // Reload expenses with new filter
+              _loadFriendExpenses();
+            },
+            activeColor: Theme.of(context).primaryColor,
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _refresh() async {
@@ -622,121 +690,178 @@ class _FriendDetailScreenState extends State<FriendDetailScreen>
   }
 
   Widget _buildExpensesTab() {
-    if (_expenses.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.receipt_long,
-              size: 64,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No shared expenses yet',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Add your first expense together!',
-              style: TextStyle(
-                color: Colors.grey.shade500,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _addExpense,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Expense'),
-            ),
-          ],
-        ),
-      );
-    }
+    return Column(
+      children: [
+        // Add the filter toggle at the top
+        _buildFilterToggle(),
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _expenses.length,
-      itemBuilder: (context, index) {
-        ExpenseModel expense = _expenses[index];
-        bool isPaidByCurrentUser = expense.paidBy == _currentUserId;
-        bool isCurrentUserInvolved = expense.splitBetween.contains(_currentUserId);
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: _getExpenseCategoryColor(expense.category).withOpacity(0.2),
-              child: Text(
-                expense.category.emoji,
-                style: const TextStyle(fontSize: 20),
-              ),
-            ),
-            title: Text(
-              expense.description,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        // Expenses list
+        Expanded(
+          child: _expenses.isEmpty
+              ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  '${expense.date.day}/${expense.date.month}/${expense.date.year}',
-                  style: TextStyle(color: Colors.grey.shade600),
+                Icon(
+                  Icons.receipt_long,
+                  size: 64,
+                  color: Colors.grey.shade400,
                 ),
-                if (isPaidByCurrentUser)
-                  Text(
-                    'You paid • ${NumberFormatter.formatCurrency(expense.amount)}',
-                    style: const TextStyle(
-                      color: Colors.blue,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  )
-                else
-                  Text(
-                    '${_friend!.name} paid • ${NumberFormatter.formatCurrency(expense.amount)}',
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-              ],
-            ),
-            trailing: isCurrentUserInvolved
-                ? Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
+                const SizedBox(height: 16),
                 Text(
-                  isPaidByCurrentUser
-                      ? 'you lent'
-                      : 'you owe',
+                  _currentFilter == ExpenseFilter.all
+                      ? 'No shared expenses yet'
+                      : 'No unsettled expenses',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 18,
                     color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
+                const SizedBox(height: 8),
                 Text(
-                  NumberFormatter.formatCurrency(
-                    isPaidByCurrentUser
-                        ? expense.getAmountOwedBy(_friend!.id)
-                        : expense.getAmountOwedBy(_currentUserId!),
-                  ),
+                  _currentFilter == ExpenseFilter.all
+                      ? 'Add your first expense together!'
+                      : 'All expenses are settled!',
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: isPaidByCurrentUser ? Colors.green : Colors.orange,
+                    color: Colors.grey.shade500,
                   ),
+                ),
+                if (_expenses.isEmpty && _currentFilter == ExpenseFilter.unsettled) ...[
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _currentFilter = ExpenseFilter.all;
+                      });
+                      _loadFriendExpenses();
+                    },
+                    child: const Text('View all expenses'),
+                  ),
+                ],
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: _addExpense,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Expense'),
                 ),
               ],
-            )
-                : null,
+            ),
+          )
+              : ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: _expenses.length,
+            itemBuilder: (context, index) {
+              ExpenseModel expense = _expenses[index];
+              bool isPaidByCurrentUser = expense.paidBy == _currentUserId;
+              bool isCurrentUserInvolved = expense.splitBetween.contains(_currentUserId);
+
+              // Check if expense is settled for visual styling
+              bool isSettledForUser = false;
+              if (_currentUserId != null) {
+                if (expense.isFullySettled()) {
+                  isSettledForUser = true;
+                } else if (expense.splitBetween.contains(_currentUserId) &&
+                    expense.paidBy != _currentUserId &&
+                    expense.isSettledForUser(_currentUserId!)) {
+                  isSettledForUser = true;
+                }
+              }
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: isSettledForUser
+                        ? _getExpenseCategoryColor(expense.category).withOpacity(0.3)
+                        : _getExpenseCategoryColor(expense.category).withOpacity(0.2),
+                    child: Text(
+                      expense.category.emoji,
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                  ),
+                  title: Text(
+                    expense.description,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                      color: isSettledForUser
+                          ? Colors.grey.shade600
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${expense.date.day}/${expense.date.month}/${expense.date.year}',
+                        style: TextStyle(
+                          color: isSettledForUser
+                              ? Colors.grey.shade500
+                              : Colors.grey.shade600,
+                          decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                      if (isPaidByCurrentUser)
+                        Text(
+                          'You paid • ${NumberFormatter.formatCurrency(expense.amount)}',
+                          style: TextStyle(
+                            color: isSettledForUser ? Colors.grey.shade500 : Colors.blue,
+                            fontWeight: FontWeight.w500,
+                            decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                          ),
+                        )
+                      else
+                        Text(
+                          '${_friend!.name} paid • ${NumberFormatter.formatCurrency(expense.amount)}',
+                          style: TextStyle(
+                            color: isSettledForUser
+                                ? Colors.grey.shade500
+                                : Colors.grey.shade700,
+                            fontWeight: FontWeight.w500,
+                            decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                          ),
+                        ),
+                    ],
+                  ),
+                  trailing: isCurrentUserInvolved
+                      ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        isPaidByCurrentUser ? 'you lent' : 'you owe',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isSettledForUser
+                              ? Colors.grey.shade500
+                              : Colors.grey.shade600,
+                          decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                      Text(
+                        NumberFormatter.formatCurrency(
+                          isPaidByCurrentUser
+                              ? expense.getAmountOwedBy(_friend!.id)
+                              : expense.getAmountOwedBy(_currentUserId!),
+                        ),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isSettledForUser
+                              ? Colors.grey.shade500
+                              : (isPaidByCurrentUser ? Colors.green : Colors.orange),
+                          decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                    ],
+                  )
+                      : null,
+                ),
+              );
+            },
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
