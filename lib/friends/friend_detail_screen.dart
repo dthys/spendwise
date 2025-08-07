@@ -644,132 +644,207 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                 }
               }
 
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: isSettledForUser
-                        ? _getExpenseCategoryColor(expense.category).withOpacity(0.3)
-                        : _getExpenseCategoryColor(expense.category).withOpacity(0.2),
-                    child: Text(
-                      expense.category.emoji,
-                      style: const TextStyle(fontSize: 20),
-                    ),
-                  ),
-                  title: Text(
-                    expense.description,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      decoration: isSettledForUser ? TextDecoration.lineThrough : null,
-                      color: isSettledForUser
-                          ? Colors.grey.shade600
-                          : Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${expense.date.day}/${expense.date.month}/${expense.date.year}',
-                        style: TextStyle(
-                          color: isSettledForUser
-                              ? Colors.grey.shade500
-                              : Colors.grey.shade600,
-                          decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+              return FutureBuilder<GroupModel?>(
+                future: _getExpenseGroupCached(expense),
+                builder: (context, groupSnapshot) {
+                  String groupDisplayName = 'Loading...';
+                  if (groupSnapshot.hasData && groupSnapshot.data != null) {
+                    groupDisplayName = _getGroupDisplayName(groupSnapshot.data!);
+                  } else if (groupSnapshot.hasError ||
+                      (groupSnapshot.connectionState == ConnectionState.done &&
+                          groupSnapshot.data == null)) {
+                    groupDisplayName = 'Unknown group';
+                  }
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: isSettledForUser
+                            ? _getExpenseCategoryColor(expense.category).withOpacity(0.3)
+                            : _getExpenseCategoryColor(expense.category).withOpacity(0.2),
+                        child: Text(
+                          expense.category.emoji,
+                          style: const TextStyle(fontSize: 20),
                         ),
                       ),
-                      if (isPaidByCurrentUser)
-                        Text(
-                          'You paid • ${NumberFormatter.formatCurrency(expense.amount)}',
-                          style: TextStyle(
-                            color: isSettledForUser ? Colors.grey.shade500 : Colors.blue,
-                            fontWeight: FontWeight.w500,
-                            decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                      title: Text(
+                        expense.description,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                          color: isSettledForUser
+                              ? Colors.grey.shade600
+                              : Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Group information - new addition
+                          if (groupSnapshot.connectionState != ConnectionState.waiting)
+                            Row(
+                              children: [
+                                Icon(
+                                  groupDisplayName == 'Friend expense'
+                                      ? Icons.person
+                                      : Icons.group,
+                                  size: 12,
+                                  color: isSettledForUser
+                                      ? Colors.grey.shade400
+                                      : Colors.grey.shade500,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  groupDisplayName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isSettledForUser
+                                        ? Colors.grey.shade400
+                                        : Colors.grey.shade500,
+                                    fontWeight: FontWeight.w500,
+                                    decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${expense.date.day}/${expense.date.month}/${expense.date.year}',
+                            style: TextStyle(
+                              color: isSettledForUser
+                                  ? Colors.grey.shade500
+                                  : Colors.grey.shade600,
+                              decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                            ),
                           ),
-                        )
-                      else
-                        Text(
-                          '${_friend!.name} paid • ${NumberFormatter.formatCurrency(expense.amount)}',
-                          style: TextStyle(
-                            color: isSettledForUser
-                                ? Colors.grey.shade500
-                                : Colors.grey.shade700,
-                            fontWeight: FontWeight.w500,
-                            decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                          if (isPaidByCurrentUser)
+                            Text(
+                              'You paid • ${NumberFormatter.formatCurrency(expense.amount)}',
+                              style: TextStyle(
+                                color: isSettledForUser ? Colors.grey.shade500 : Colors.blue,
+                                fontWeight: FontWeight.w500,
+                                decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                              ),
+                            )
+                          else
+                            Text(
+                              '${_friend!.name} paid • ${NumberFormatter.formatCurrency(expense.amount)}',
+                              style: TextStyle(
+                                color: isSettledForUser
+                                    ? Colors.grey.shade500
+                                    : Colors.grey.shade700,
+                                fontWeight: FontWeight.w500,
+                                decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                              ),
+                            ),
+                        ],
+                      ),
+                      trailing: isCurrentUserInvolved
+                          ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            isPaidByCurrentUser ? 'you lent' : 'you owe',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isSettledForUser
+                                  ? Colors.grey.shade500
+                                  : Colors.grey.shade600,
+                              decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
-                  trailing: isCurrentUserInvolved
-                      ? Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        isPaidByCurrentUser ? 'you lent' : 'you owe',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isSettledForUser
-                              ? Colors.grey.shade500
-                              : Colors.grey.shade600,
-                          decoration: isSettledForUser ? TextDecoration.lineThrough : null,
-                        ),
-                      ),
-                      Text(
-                        NumberFormatter.formatCurrency(
-                          isPaidByCurrentUser
-                              ? expense.getAmountOwedBy(_friend!.id)
-                              : expense.getAmountOwedBy(_currentUserId!),
-                        ),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isSettledForUser
-                              ? Colors.grey.shade500
-                              : (isPaidByCurrentUser ? Colors.green : Colors.orange),
-                          decoration: isSettledForUser ? TextDecoration.lineThrough : null,
-                        ),
-                      ),
-                    ],
-                  )
-                      : null,
-                  onTap: () async {
-                    // Get required data
-                    GroupModel? group = await _getExpenseGroup(expense);
-                    UserModel? currentUser = await _getCurrentUser();
+                          Text(
+                            NumberFormatter.formatCurrency(
+                              isPaidByCurrentUser
+                                  ? expense.getAmountOwedBy(_friend!.id)
+                                  : expense.getAmountOwedBy(_currentUserId!),
+                            ),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isSettledForUser
+                                  ? Colors.grey.shade500
+                                  : (isPaidByCurrentUser ? Colors.green : Colors.orange),
+                              decoration: isSettledForUser ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                        ],
+                      )
+                          : null,
+                      onTap: () async {
+                        // Get required data
+                        GroupModel? group = await _getExpenseGroup(expense);
+                        UserModel? currentUser = await _getCurrentUser();
 
-                    if (group == null || currentUser == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Error loading expense details'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
+                        if (group == null || currentUser == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Error loading expense details'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
 
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ExpenseDetailScreen(
-                          expense: expense,
-                          group: group,
-                          members: [currentUser, _friend!],
-                        ),
-                      ),
-                    );
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ExpenseDetailScreen(
+                              expense: expense,
+                              group: group,
+                              members: [currentUser, _friend!],
+                            ),
+                          ),
+                        );
 
-                    // Refresh if expense was edited/deleted
-                    if (result == true) {
-                      _refresh();
-                    }
-                  },
-                ),
+                        // Refresh if expense was edited/deleted
+                        if (result == true) {
+                          _refresh();
+                        }
+                      },
+                    ),
+                  );
+                },
               );
             },
           ),
         ),
       ],
     );
+  }
+
+  // Add this method to cache group information for better performance
+  Map<String, GroupModel> _groupCache = {};
+
+  Future<GroupModel?> _getExpenseGroupCached(ExpenseModel expense) async {
+    // Check cache first
+    if (_groupCache.containsKey(expense.groupId)) {
+      return _groupCache[expense.groupId];
+    }
+
+    // Fetch from database if not in cache
+    try {
+      GroupModel? group = await _databaseService.getGroup(expense.groupId);
+      if (group != null) {
+        _groupCache[expense.groupId] = group;
+      }
+      return group;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error getting expense group: $e');
+      }
+      return null;
+    }
+  }
+
+// Helper method to determine group display name
+  String _getGroupDisplayName(GroupModel group) {
+    if (group.metadata?['isFriendGroup'] == true ||
+        (group.memberIds.length == 2 && group.name.contains('&'))) {
+      return 'Friend expense';
+    }
+    return group.name;
   }
 
   // Get the group where this expense belongs
