@@ -10,6 +10,7 @@ import '../../models/settlement_model.dart';
 import '../../utils/number_formatter.dart';
 import '../models/group_model.dart';
 import '../screens/expenses/activity_log_screen.dart';
+import '../screens/expenses/expense_detail_screen.dart';
 import '../screens/groups/add_expense_screen.dart';
 import 'friend_service.dart';
 
@@ -602,8 +603,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                     color: Colors.grey.shade500,
                   ),
                 ),
-                if (_expenses.isEmpty &&
-                    _currentFilter == ExpenseFilter.unsettled) ...[
+                if (_expenses.isEmpty && _currentFilter == ExpenseFilter.unsettled) ...[
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: () {
@@ -630,8 +630,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
             itemBuilder: (context, index) {
               ExpenseModel expense = _expenses[index];
               bool isPaidByCurrentUser = expense.paidBy == _currentUserId;
-              bool isCurrentUserInvolved = expense.splitBetween.contains(
-                  _currentUserId);
+              bool isCurrentUserInvolved = expense.splitBetween.contains(_currentUserId);
 
               // Check if expense is settled for visual styling
               bool isSettledForUser = false;
@@ -650,10 +649,8 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: isSettledForUser
-                        ? _getExpenseCategoryColor(expense.category)
-                        .withOpacity(0.3)
-                        : _getExpenseCategoryColor(expense.category)
-                        .withOpacity(0.2),
+                        ? _getExpenseCategoryColor(expense.category).withOpacity(0.3)
+                        : _getExpenseCategoryColor(expense.category).withOpacity(0.2),
                     child: Text(
                       expense.category.emoji,
                       style: const TextStyle(fontSize: 20),
@@ -663,55 +660,42 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                     expense.description,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      decoration: isSettledForUser
-                          ? TextDecoration.lineThrough
-                          : null,
+                      decoration: isSettledForUser ? TextDecoration.lineThrough : null,
                       color: isSettledForUser
                           ? Colors.grey.shade600
-                          : Theme
-                          .of(context)
-                          .colorScheme
-                          .onSurface,
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${expense.date.day}/${expense.date.month}/${expense
-                            .date.year}',
+                        '${expense.date.day}/${expense.date.month}/${expense.date.year}',
                         style: TextStyle(
                           color: isSettledForUser
                               ? Colors.grey.shade500
                               : Colors.grey.shade600,
-                          decoration: isSettledForUser ? TextDecoration
-                              .lineThrough : null,
+                          decoration: isSettledForUser ? TextDecoration.lineThrough : null,
                         ),
                       ),
                       if (isPaidByCurrentUser)
                         Text(
-                          'You paid • ${NumberFormatter.formatCurrency(
-                              expense.amount)}',
+                          'You paid • ${NumberFormatter.formatCurrency(expense.amount)}',
                           style: TextStyle(
-                            color: isSettledForUser
-                                ? Colors.grey.shade500
-                                : Colors.blue,
+                            color: isSettledForUser ? Colors.grey.shade500 : Colors.blue,
                             fontWeight: FontWeight.w500,
-                            decoration: isSettledForUser ? TextDecoration
-                                .lineThrough : null,
+                            decoration: isSettledForUser ? TextDecoration.lineThrough : null,
                           ),
                         )
                       else
                         Text(
-                          '${_friend!.name} paid • ${NumberFormatter
-                              .formatCurrency(expense.amount)}',
+                          '${_friend!.name} paid • ${NumberFormatter.formatCurrency(expense.amount)}',
                           style: TextStyle(
                             color: isSettledForUser
                                 ? Colors.grey.shade500
                                 : Colors.grey.shade700,
                             fontWeight: FontWeight.w500,
-                            decoration: isSettledForUser ? TextDecoration
-                                .lineThrough : null,
+                            decoration: isSettledForUser ? TextDecoration.lineThrough : null,
                           ),
                         ),
                     ],
@@ -728,8 +712,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                           color: isSettledForUser
                               ? Colors.grey.shade500
                               : Colors.grey.shade600,
-                          decoration: isSettledForUser ? TextDecoration
-                              .lineThrough : null,
+                          decoration: isSettledForUser ? TextDecoration.lineThrough : null,
                         ),
                       ),
                       Text(
@@ -742,15 +725,44 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                           fontWeight: FontWeight.bold,
                           color: isSettledForUser
                               ? Colors.grey.shade500
-                              : (isPaidByCurrentUser ? Colors.green : Colors
-                              .orange),
-                          decoration: isSettledForUser ? TextDecoration
-                              .lineThrough : null,
+                              : (isPaidByCurrentUser ? Colors.green : Colors.orange),
+                          decoration: isSettledForUser ? TextDecoration.lineThrough : null,
                         ),
                       ),
                     ],
                   )
                       : null,
+                  onTap: () async {
+                    // Get required data
+                    GroupModel? group = await _getExpenseGroup(expense);
+                    UserModel? currentUser = await _getCurrentUser();
+
+                    if (group == null || currentUser == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Error loading expense details'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ExpenseDetailScreen(
+                          expense: expense,
+                          group: group,
+                          members: [currentUser, _friend!],
+                        ),
+                      ),
+                    );
+
+                    // Refresh if expense was edited/deleted
+                    if (result == true) {
+                      _refresh();
+                    }
+                  },
                 ),
               );
             },
@@ -758,6 +770,34 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
         ),
       ],
     );
+  }
+
+  // Get the group where this expense belongs
+  Future<GroupModel?> _getExpenseGroup(ExpenseModel expense) async {
+    if (_currentUserId == null || _friend == null) return null;
+
+    try {
+      // Get the group by expense's groupId
+      return await _databaseService.getGroup(expense.groupId);
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error getting expense group: $e');
+      }
+      return null;
+    }
+  }
+
+// Get current user model
+  Future<UserModel?> _getCurrentUser() async {
+    if (_currentUserId == null) return null;
+    try {
+      return await _databaseService.getUser(_currentUserId!);
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error getting current user: $e');
+      }
+      return null;
+    }
   }
 
   Future<String?> _getFriendGroupId() async {

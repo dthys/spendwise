@@ -46,6 +46,26 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
 
     if (currentUser == null) return false;
 
+    // For friend groups (2 members): if ANY settlement exists, don't allow editing
+    if (widget.members.length == 2) {
+      // Simple rule: if expense is settled in any way, block editing
+      if (widget.expense.isFullySettled() ||
+          widget.expense.isSettledForUser(currentUser.uid)) {
+        return false;
+      }
+    } else {
+      // For regular groups, use the normal rules
+      if (widget.expense.isFullySettled()) {
+        return false;
+      }
+
+      if (widget.expense.splitBetween.contains(currentUser.uid) &&
+          widget.expense.paidBy != currentUser.uid &&
+          widget.expense.isSettledForUser(currentUser.uid)) {
+        return false;
+      }
+    }
+
     // Allow editing if user paid for the expense or is group creator
     return widget.expense.paidBy == currentUser.uid ||
         widget.group.createdBy == currentUser.uid;
