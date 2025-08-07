@@ -407,16 +407,16 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
 // Add this debug button to test direct creation
 
   void _settleDebt() async {
-    if (_friend == null || _currentUserId == null ||
-        _friendBalance.abs() <= 0.01) return;
+    if (_friend == null || _currentUserId == null || _friendBalance.abs() <= 0.01) return;
 
-    // Show a simple settlement dialog
+    // Show the settlement dialog (which now handles loading and settlement internally)
     bool? result = await _showSettlementDialog();
 
     if (result == true) {
+      // Settlement was successful, refresh the data
       await _refresh();
 
-      // ✅ IMPORTANT: Signal that refresh is needed when returning to home
+      // Signal that refresh is needed when returning to home
       _needsRefreshOnPop = true;
 
       if (mounted) {
@@ -428,6 +428,8 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
         );
       }
     }
+    // If result is false or null, settlement was cancelled or failed
+    // The dialog already handles showing error messages for failures
   }
 
 // Add this button to your friend detail screen UI temporarily
@@ -440,59 +442,14 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
 
     return showDialog<bool>(
       context: context,
-      builder: (context) =>
-          AlertDialog(
-            title: Text('Settle Debt with ${_friend!.name}'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${_friend!.name} $balanceText'),
-                const SizedBox(height: 16),
-                Text(
-                  friendOwesUser
-                      ? 'Mark that ${_friend!
-                      .name} has paid you ${NumberFormatter.formatCurrency(
-                      _friendBalance.abs())}?'
-                      : 'Mark that you have paid ${_friend!
-                      .name} ${NumberFormatter.formatCurrency(
-                      _friendBalance.abs())}?',
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  try {
-                    // Use friend service to settle across all groups
-                    await _friendService.settleFriendDebt(
-                      _currentUserId!,
-                      _friend!.id,
-                      _friendBalance,
-                      SettlementMethod.cash,
-                      'Settled via friend view',
-                    );
-                    Navigator.pop(context, true);
-                  } catch (e) {
-                    Navigator.pop(context, false);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error settling debt: $e'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                },
-                child: const Text('Settle'),
-              ),
-            ],
-          ),
+      builder: (context) => _SettlementDialog(
+        friend: _friend!,
+        currentUserId: _currentUserId!,
+        friendBalance: _friendBalance,
+        balanceText: balanceText,
+        friendOwesUser: friendOwesUser,
+        friendService: _friendService,
+      ),
     );
   }
 
@@ -1055,5 +1012,132 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
       }
       return null;
     }
+  }
+}
+
+// Create a separate StatefulWidget for the dialog to manage loading state
+class _SettlementDialog extends StatefulWidget {
+  final UserModel friend;
+  final String currentUserId;
+  final double friendBalance;
+  final String balanceText;
+  final bool friendOwesUser;
+  final FriendService friendService;
+
+  const _SettlementDialog({
+    required this.friend,
+    required this.currentUserId,
+    required this.friendBalance,
+    required this.balanceText,
+    required this.friendOwesUser,
+    required this.friendService,
+  });
+
+  @override
+  _SettlementDialogState createState() => _SettlementDialogState();
+}
+
+class _SettlementDialogState extends State<_SettlementDialog> {
+  bool _isSettling = false;
+
+  Future<void> _performSettlement() async {
+    setState(() {
+      _isSettling = true;
+    });
+
+    try {
+      await widget.friendService.settleFriendDebt(
+        widget.currentUserId,
+        widget.friend.id,
+        widget.friendBalance,
+        SettlementMethod.cash,
+        'Settled via friend view',
+      );
+
+      // Settlement successful
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      // Settlement failed
+      setState(() {
+        _isSettling = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error settling debt: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Settle Debt with ${widget.friend.name}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${widget.friend.name} ${widget.balanceText}'),
+          const SizedBox(height: 16),
+          Text(
+            widget.friendOwesUser
+                ? 'Mark that ${widget.friend.name} has paid you ${NumberFormatter.formatCurrency(widget.friendBalance.abs())}?'
+                : 'Mark that you have paid ${widget.friend.name} ${NumberFormatter.formatCurrency(widget.friendBalance.abs())}?',
+          ),
+          if (_isSettling) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(context).primaryColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Settling debt...',
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSettling ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _isSettling ? null : _performSettlement,
+          child: _isSettling
+              ? SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Colors.white,
+              ),
+            ),
+          )
+              : const Text('Settle'),
+        ),
+      ],
+    );
   }
 }

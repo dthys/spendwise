@@ -75,7 +75,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     if (!_canUserEdit()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('You can only edit expenses you paid for'),
+          content: Text('You can only edit expenses you paid for and expenses that are not settled'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -103,7 +103,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     if (!_canUserEdit()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('You can only delete expenses you paid for'),
+          content: Text('You can only edit expenses you paid for and expenses that are not settled'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -425,7 +425,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'You can only edit or delete expenses you paid for.',
+                              'You can only edit expenses you paid for and expenses that are not settled',
                               style: TextStyle(color: Colors.orange.shade700),
                             ),
                           ),
