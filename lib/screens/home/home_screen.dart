@@ -39,6 +39,8 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   late StreamController<double> _balanceController;
   late String _currentUserId;
   String? _userName;
+  GlobalKey _friendsViewKey = GlobalKey();
+
 
   // Cache to prevent unnecessary rebuilds
   double? _cachedBalance;
@@ -1013,6 +1015,11 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
     if (forceRefresh) {
       _loadUserName();
+
+      // ✅ Force rebuild of friends view by changing the key
+      setState(() {
+        _friendsViewKey = GlobalKey();
+      });
     }
   }
 
@@ -1490,7 +1497,10 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           // Content Area
           Expanded(
             child: _showingFriends
-                ? _buildFriendsView(user.uid)
+                ? KeyedSubtree(
+              key: _friendsViewKey,
+              child: _buildFriendsView(user.uid),
+            )
                 : _buildGroupsView(user.uid),
           ),
         ],
