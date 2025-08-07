@@ -42,6 +42,8 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
   String? _currentUserId;
   double _friendBalance = 0.0;
   bool _isLoading = true;
+  bool _needsRefreshOnPop = false;
+
 
   List<ExpenseModel> _expenses = [];
   Timer? _refreshTimer;
@@ -320,15 +322,20 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
         print('🔧 Friend expenses list has ${_expenses.length} expenses');
       }
 
-      if (result != null) {
+      // ✅ IMPORTANT: Signal to parent that refresh is needed
+      if (result != null || result == true) {
         if (kDebugMode) {
-          print('🔧 AddExpenseScreen returned success');
+          print('🔧 AddExpenseScreen returned success - setting refresh flag');
         }
+        // We'll use this flag when the screen pops
+        _needsRefreshOnPop = true;
       } else {
         if (kDebugMode) {
           print(
               '🔧 AddExpenseScreen returned null, but expense was created anyway');
         }
+        // Still set refresh flag since expense might have been created
+        _needsRefreshOnPop = true;
       }
     } catch (e) {
       if (kDebugMode) {
@@ -350,7 +357,52 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
     }
   }
 
-// ALSO: Add this method to directly create an expense without UI navigation
+  Future<void> _navigateToExpenseDetail(ExpenseModel expense) async {
+    // Get required data
+    GroupModel? group = await _getExpenseGroup(expense);
+    UserModel? currentUser = await _getCurrentUser();
+
+    if (group == null || currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error loading expense details'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ExpenseDetailScreen(
+          expense: expense,
+          group: group,
+          members: [currentUser, _friend!],
+        ),
+      ),
+    );
+
+    // Check if expense was edited/deleted and refresh accordingly
+    if (result == true || result == 'refresh') {
+      await _refresh();
+      _needsRefreshOnPop = true; // Signal home screen needs refresh
+    }
+  }
+
+  // Add this method to properly handle WillPopScope if needed
+  Widget buildWithPopScope(Widget child) {
+    return WillPopScope(
+      onWillPop: () async {
+        if (_needsRefreshOnPop) {
+          Navigator.pop(context, 'refresh');
+          return false;
+        }
+        return true;
+      },
+      child: child,
+    );
+  }
 
 // Add this debug button to test direct creation
 
@@ -362,7 +414,11 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
     bool? result = await _showSettlementDialog();
 
     if (result == true) {
-      _refresh();
+      await _refresh();
+
+      // ✅ IMPORTANT: Signal that refresh is needed when returning to home
+      _needsRefreshOnPop = true;
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -373,9 +429,6 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
       }
     }
   }
-
-
-// Add this method to check notification system vs group system
 
 // Add this button to your friend detail screen UI temporarily
 
@@ -772,37 +825,8 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                         ],
                       )
                           : null,
-                      onTap: () async {
-                        // Get required data
-                        GroupModel? group = await _getExpenseGroup(expense);
-                        UserModel? currentUser = await _getCurrentUser();
-
-                        if (group == null || currentUser == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Error loading expense details'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                          return;
-                        }
-
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ExpenseDetailScreen(
-                              expense: expense,
-                              group: group,
-                              members: [currentUser, _friend!],
-                            ),
-                          ),
-                        );
-
-                        // Refresh if expense was edited/deleted
-                        if (result == true) {
-                          _refresh();
-                        }
-                      },
+                      // ✅ FIXED: Use the proper navigation method that handles refresh
+                      onTap: () => _navigateToExpenseDetail(expense),
                     ),
                   );
                 },
@@ -811,6 +835,137 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
           ),
         ),
       ],
+    );
+  }
+
+// 3. WRAP your build method with WillPopScope for proper back navigation handling
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Loading...'),
+          backgroundColor: Theme.of(context).primaryColor,
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_friend == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Friend Not Found'),
+          backgroundColor: Theme.of(context).primaryColor,
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: Text('Friend not found'),
+        ),
+      );
+    }
+
+    // ✅ WRAP with WillPopScope for proper navigation handling
+    return WillPopScope(
+      onWillPop: () async {
+        if (_needsRefreshOnPop) {
+          Navigator.pop(context, 'refresh');
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: Text(_friend!.name),
+          backgroundColor: Theme.of(context).primaryColor,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          actions: [
+            // Activity Log Button
+            FutureBuilder<String?>(
+              future: _getFriendGroupId(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const SizedBox.shrink();
+                }
+
+                return StreamBuilder<int>(
+                  stream: _databaseService.streamUnreadActivityCount(
+                      _currentUserId ?? '',
+                      snapshot.data!
+                  ),
+                  builder: (context, unreadSnapshot) {
+                    int unreadCount = unreadSnapshot.data ?? 0;
+
+                    return IconButton(
+                      icon: Stack(
+                        children: [
+                          const Icon(Icons.history),
+                          if (unreadCount > 0)
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 12,
+                                  minHeight: 12,
+                                ),
+                                child: Text(
+                                  unreadCount > 9 ? '9+' : unreadCount.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      onPressed: () async {
+                        if (_currentUserId != null && snapshot.hasData) {
+                          await _databaseService.updateLastSeenActivity(
+                              _currentUserId!,
+                              snapshot.data!
+                          );
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  ActivityLogScreen(groupId: snapshot.data!),
+                            ),
+                          );
+                        }
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            _buildBalanceHeader(),
+            Expanded(
+              child: _buildExpensesTab(),
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _addExpense,
+          backgroundColor: Theme.of(context).primaryColor,
+          child: const Icon(Icons.add, color: Colors.white),
+        ),
+      ),
     );
   }
 
@@ -900,137 +1055,5 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
       }
       return null;
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Loading...'),
-          backgroundColor: Theme
-              .of(context)
-              .primaryColor,
-          foregroundColor: Colors.white,
-        ),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_friend == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Friend Not Found'),
-          backgroundColor: Theme
-              .of(context)
-              .primaryColor,
-          foregroundColor: Colors.white,
-        ),
-        body: const Center(
-          child: Text('Friend not found'),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: Theme
-          .of(context)
-          .scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(_friend!.name),
-        backgroundColor: Theme
-            .of(context)
-            .primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          // Activity Log Button
-          FutureBuilder<String?>(
-            future: _getFriendGroupId(), // Fixed: added underscore
-            builder: (context, snapshot) {
-              if (!snapshot.hasData)
-                return const SizedBox.shrink(); // Fixed: added const
-
-              return StreamBuilder<int>(
-                stream: _databaseService
-                    .streamUnreadActivityCount( // Fixed: added underscore
-                    _currentUserId ?? '', // Fixed: added underscore
-                    snapshot.data!
-                ),
-                builder: (context, unreadSnapshot) {
-                  int unreadCount = unreadSnapshot.data ?? 0;
-
-                  return IconButton(
-                    icon: Stack(
-                      children: [
-                        const Icon(Icons.history),
-                        if (unreadCount > 0)
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 12,
-                                minHeight: 12,
-                              ),
-                              child: Text(
-                                unreadCount > 9 ? '9+' : unreadCount.toString(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    onPressed: () async {
-                      if (_currentUserId != null &&
-                          snapshot.hasData) { // Fixed: added underscore
-                        await _databaseService
-                            .updateLastSeenActivity( // Fixed: added underscore
-                            _currentUserId!,
-                            snapshot.data! // Fixed: added underscore
-                        );
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                ActivityLogScreen(groupId: snapshot.data!),
-                          ),
-                        );
-                      }
-                    },
-                  );
-                },
-              );
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildBalanceHeader(), // Fixed: added underscore
-          Expanded(
-            child: _buildExpensesTab(), // Fixed: added underscore
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton( // Don't forget to add this back
-        onPressed: _addExpense,
-        backgroundColor: Theme
-            .of(context)
-            .primaryColor,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
-    );
   }
 }
