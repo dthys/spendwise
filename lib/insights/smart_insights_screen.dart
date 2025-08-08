@@ -657,28 +657,6 @@ class _SmartInsightsScreenState extends State<SmartInsightsScreen>
         break; // Only show one imbalance insight
       }
     }
-
-    // Group debt insights
-    Map<String, double> groupDebts = {};
-    for (ExpenseModel expense in _allExpenses) {
-      if (expense.splitBetween.contains(currentUserId) && expense.paidBy != currentUserId) {
-        double splitAmount = expense.amount / expense.splitBetween.length;
-        groupDebts[expense.paidBy] = (groupDebts[expense.paidBy] ?? 0) + splitAmount;
-      }
-    }
-
-    double totalOwed = groupDebts.values.fold(0.0, (sum, debt) => sum + debt);
-    if (totalOwed > 20) {
-      _insights.add(SpendingInsight(
-        title: "💳 Settlement Time",
-        description: "You owe ${NumberFormatter.formatCurrency(totalOwed)} total across ${groupDebts.length} friends. Time to settle up and keep friendships happy!",
-        actionText: "Settle Debts",
-        icon: Icons.payment,
-        color: Colors.indigo,
-        type: InsightType.fairness,
-        data: {"totalOwed": totalOwed, "friendCount": groupDebts.length},
-      ));
-    }
   }
 
   void _addCelebrationInsights(String currentUserId) {
