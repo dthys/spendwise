@@ -1,4 +1,4 @@
-package com.example.spendwise
+package com.dthys.spendwise
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
