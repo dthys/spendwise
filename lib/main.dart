@@ -14,10 +14,8 @@ import 'services/biometric_service.dart';
 import 'services/notification_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
-import 'screens/splash/splash_screen.dart';
 import 'screens/expenses/activity_log_screen.dart';
 import 'services/update_service.dart';
-import 'dialogs/update_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -537,7 +535,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             ),
             const SizedBox(height: 2),
             Text(
-              'A new version is ready to download with improvements and bug fixes',
+              'A new version is available on Google Play with improvements and bug fixes',
               style: TextStyle(
                 color: Colors.blue.shade700,
                 fontSize: 13,
@@ -565,11 +563,39 @@ class _AuthWrapperState extends State<AuthWrapper> {
               await Future.delayed(const Duration(milliseconds: 100));
 
               if (mounted) {
-                await UpdateDialog.showUpdateCheckDialog(
-                  context,
-                  updateService,
-                  true,
+                // Show loading snackbar
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Row(
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        Text('Opening Play Store...'),
+                      ],
+                    ),
+                    duration: Duration(seconds: 3),
+                  ),
                 );
+
+                // Open Play Store directly
+                bool success = await updateService.openPlayStoreForUpdate();
+
+                if (!success && mounted) {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(updateService.lastError ?? 'Could not open Play Store'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             icon: const Icon(Icons.download, size: 16),

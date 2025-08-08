@@ -10,7 +10,6 @@ import '../../services/database_service.dart';
 import '../../services/biometric_service.dart';
 import '../../models/user_model.dart';
 import '../../dialogs/auth_dialogs.dart';
-import 'notification_settings_screen.dart';
 import '../../services/update_service.dart';
 import '../../dialogs/update_dialog.dart';
 import 'package:share_plus/share_plus.dart';
@@ -432,29 +431,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       PackageInfo packageInfo = await PackageInfo.fromPlatform();
 
-      // Your actual GitHub repository download link
-      const String downloadLink = 'https://github.com/dthys/spendwise/releases/latest/download/app-release.apk';
+      // Your app's Play Store link
+      const String playStoreLink = 'https://play.google.com/store/apps/details?id=com.dthys.spendwise';
 
       await Share.share(
         '📱 *Download Spendwise v${packageInfo.version}*\n\n'
             '💰 Split expenses with friends easily!\n'
             '✨ Track shared expenses and settle debts effortlessly\n'
             '🎯 Perfect for group trips, shared meals, and roommate expenses\n\n'
-            '📥 *Download here:*\n$downloadLink\n\n'
-            '⚠️ *Installation:* Enable "Install from unknown sources" in Settings > Security\n\n'
+            '📥 *Get it on Google Play:*\n$playStoreLink\n\n'
+            '⭐ Rate us 5 stars if you love it!\n\n'
             '🔒 Safe & Secure • Made with ❤️',
         subject: 'Try Spendwise - Split Expenses App!',
       );
 
       // Optional: Track sharing for analytics
       if (kDebugMode) {
-        print('App shared via link');
+        print('App shared via Play Store link');
       }
 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error sharing app: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _launchPlayStore() async {
+    const String packageName = 'com.yourcompany.spendwise'; // Replace with your actual package name
+    final Uri playStoreUri = Uri.parse('https://play.google.com/store/apps/details?id=$packageName');
+
+    try {
+      if (await canLaunchUrl(playStoreUri)) {
+        await launchUrl(playStoreUri, mode: LaunchMode.externalApplication);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not open Play Store'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error opening Play Store: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -535,18 +559,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
       }
-    }
-  }
-
-  Future<void> _launchPlayStore() async {
-    final Uri playStoreUri = Uri.parse('https://play.google.com/store/apps/details?id=com.yourcompany.spendwise');
-
-    if (await canLaunchUrl(playStoreUri)) {
-      await launchUrl(playStoreUri, mode: LaunchMode.externalApplication);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Coming soon to Google Play Store!')),
-      );
     }
   }
 
@@ -736,15 +748,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.star_outline,
                     title: 'Rate Spendwise',
                     subtitle: 'Rate us on Google Play Store',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Feature coming soon!'),
-                          backgroundColor: Colors.blue,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    },
+                    onTap: _launchPlayStore, // Changed from showing "coming soon" to actually opening Play Store
                   ),
                   _buildSettingsTile(
                     icon: Icons.support_agent,
