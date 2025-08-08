@@ -7,22 +7,30 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:219272669919:android:cec5a4a4dfee779313176a",
+        "mobilesdk_app_id": "1:219272669919:android:286810bc230dca0913176a",
         "android_client_info": {
-          "package_name": "com.example.spendwise"
+          "package_name": "com.dthys.spendwise"
         }
       },
       "oauth_client": [
         {
-          "client_id": "219272669919-jma77mgss4lb6iq4o94dnvq4t31g44qd.apps.googleusercontent.com",
+          "client_id": "219272669919-f7uo8mak1fmofvjtb7hd5a4tob0fcui7.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.spendwise",
+            "package_name": "com.dthys.spendwise",
             "certificate_hash": "c524666fbde04c18e8075f9bb50d1998ebc03cee"
           }
         },
         {
-          "client_id": "219272669919-e0diop7388rv7ptknjt4pvghp876avta.apps.googleusercontent.com",
+          "client_id": "219272669919-iin0ae4ovuq8q25499j9t241n4uccv64.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dthys.spendwise",
+            "certificate_hash": "45ec5b121c5722ede66401021778d2db90429afc"
+          }
+        },
+        {
+          "client_id": "219272669919-r8v1eqlu3s3uqk0vq2huph8b4h74mitc.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
